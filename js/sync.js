@@ -67,23 +67,47 @@ async function flushQueue() {
 
 /* ---------------- API ---------------- */
 
+async function parseApiResponse(res) {
+  const text = await res.text();
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // Apps Scriptが正しく公開されていないと、JSONではなく
+    // Googleのログイン/エラーページ(HTML)が返ってくる
+    throw new Error(
+      "サーバーの応答を読み取れません。Apps Scriptのデプロイ設定を確認してください:" +
+      " ①種類が「ウェブアプリ」 ②アクセスできるユーザーが「全員」" +
+      " ③URLが「ウェブアプリのURL」(https://script.google.com/macros/s/…/exec)"
+    );
+  }
+}
+
+async function safeFetch(url, opts) {
+  try {
+    return await fetch(url, opts);
+  } catch (e) {
+    throw new Error("サーバーに接続できません。URLが正しいか、通信環境を確認してください");
+  }
+}
+
 async function apiGet(conf) {
   const c = conf || syncConf;
   const sep = c.url.includes("?") ? "&" : "?";
-  const res = await fetch(`${c.url}${sep}token=${encodeURIComponent(c.token || "")}&action=all`);
-  const data = await res.json();
+  const res = await safeFetch(`${c.url}${sep}token=${encodeURIComponent(c.token || "")}&action=all`);
+  const data = await parseApiResponse(res);
   if (data.error) throw new Error(data.error);
+  if (!data.db) throw new Error("応答の形式が不正です(Code.gsが最新か確認してください)");
   return data.db;
 }
 
 async function apiPost(op) {
-  const res = await fetch(syncConf.url, {
+  const res = await safeFetch(syncConf.url, {
     method: "POST",
     // text/plain にするとプリフライト無しで Apps Script に届く
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     body: JSON.stringify({ token: syncConf.token || "", ...op })
   });
-  const data = await res.json();
+  const data = await parseApiResponse(res);
   if (data.error) throw new Error(data.error);
 }
 
@@ -174,6 +198,15 @@ async function syncPull(silent) {
 async function connectSync(url, token, opts) {
   const conf = { url: url.trim(), token: (token || "").trim() };
   if (!/^https?:\/\//.test(conf.url)) throw new Error("URLの形式が正しくありません");
+  if (conf.url.includes("docs.google.com")) {
+    throw new Error("それはスプレッドシート自体のURLです。Apps Scriptの「デプロイ」で発行される「ウェブアプリのURL」(https://script.google.com/macros/s/…/exec)を入力してください");
+  }
+  if (/\/dev(\?|$)/.test(conf.url)) {
+    throw new Error("「…/dev」は所有者専用のテストURLです。「…/exec」で終わるウェブアプリのURLを入力してください");
+  }
+  if (conf.url.includes("script.google.com") && !conf.url.includes("/macros/")) {
+    throw new Error("Apps Scriptエディタ画面のURLではなく、デプロイ時に発行される「ウェブアプリのURL」(https://script.google.com/macros/s/…/exec)を入力してください");
+  }
   const remote = await apiGet(conf); // 接続テストを兼ねる
   const remoteHas = (remote.players || []).length || (remote.games || []).length;
   const localHas = db.players.length || db.games.length;
