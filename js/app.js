@@ -291,8 +291,10 @@ function openPlayerModal(pid) {
         bats: modal.querySelector("#f-bats").value,
         active: modal.querySelector("#f-active").value === "1"
       };
-      if (pid) Object.assign(playerById(pid), data);
-      else db.players.push({ id: uid(), ...data });
+      let rec;
+      if (pid) { rec = playerById(pid); Object.assign(rec, data); }
+      else { rec = { id: uid(), ...data }; db.players.push(rec); }
+      pushOps([{ action: "upsert", collection: "players", record: rec }]);
       saveDB(); closeModal(); render(); toast("保存しました");
     };
     const del = modal.querySelector("#m-delete");
@@ -301,6 +303,11 @@ function openPlayerModal(pid) {
       db.players = db.players.filter(x => x.id !== pid);
       db.batting = db.batting.filter(x => x.playerId !== pid);
       db.pitching = db.pitching.filter(x => x.playerId !== pid);
+      pushOps([
+        { action: "delete", collection: "players", id: pid },
+        { action: "deleteWhere", collection: "batting", field: "playerId", value: pid },
+        { action: "deleteWhere", collection: "pitching", field: "playerId", value: pid }
+      ]);
       saveDB(); closeModal(); render(); toast("削除しました");
     };
   });
@@ -464,8 +471,10 @@ function openGameModal(gid) {
         scoreAgainst: +modal.querySelector("#f-against").value || 0,
         note: modal.querySelector("#f-note").value.trim()
       };
-      if (gid) Object.assign(gameById(gid), data);
-      else db.games.push({ id: uid(), ...data });
+      let rec;
+      if (gid) { rec = gameById(gid); Object.assign(rec, data); }
+      else { rec = { id: uid(), ...data }; db.games.push(rec); }
+      pushOps([{ action: "upsert", collection: "games", record: rec }]);
       currentSeason = date.slice(0, 4);
       saveDB(); closeModal(); render(); toast("保存しました");
     };
@@ -475,6 +484,11 @@ function openGameModal(gid) {
       db.games = db.games.filter(x => x.id !== gid);
       db.batting = db.batting.filter(x => x.gameId !== gid);
       db.pitching = db.pitching.filter(x => x.gameId !== gid);
+      pushOps([
+        { action: "delete", collection: "games", id: gid },
+        { action: "deleteWhere", collection: "batting", field: "gameId", value: gid },
+        { action: "deleteWhere", collection: "pitching", field: "gameId", value: gid }
+      ]);
       saveDB(); closeModal(); render(); toast("削除しました");
     };
   });
@@ -535,13 +549,16 @@ function openBatLineModal(gameId, lineId) {
       ["AB","H","D2","T3","HR","RBI","R","BB","HBP","SO","SH","SF","GDP","SB","CS"].forEach(k => data[k] = v(k));
       if (data.H > data.AB) { toast("安打が打数を超えています"); return; }
       if (data.D2 + data.T3 + data.HR > data.H) { toast("長打の合計が安打数を超えています"); return; }
-      if (lineId) Object.assign(db.batting.find(l => l.id === lineId), data);
-      else db.batting.push({ id: uid(), ...data });
+      let rec;
+      if (lineId) { rec = db.batting.find(l => l.id === lineId); Object.assign(rec, data); }
+      else { rec = { id: uid(), ...data }; db.batting.push(rec); }
+      pushOps([{ action: "upsert", collection: "batting", record: rec }]);
       saveDB(); closeModal(); render(); toast("保存しました");
     };
     const del = modal.querySelector("#m-delete");
     if (del) del.onclick = () => {
       db.batting = db.batting.filter(l => l.id !== lineId);
+      pushOps([{ action: "delete", collection: "batting", id: lineId }]);
       saveDB(); closeModal(); render(); toast("削除しました");
     };
   });
@@ -604,13 +621,16 @@ function openPitLineModal(gameId, lineId) {
         SV: decVal === "SV" ? 1 : 0, HLD: decVal === "HLD" ? 1 : 0
       };
       if (data.ER > data.RA) { toast("自責点が失点を超えています"); return; }
-      if (lineId) Object.assign(db.pitching.find(l => l.id === lineId), data);
-      else db.pitching.push({ id: uid(), ...data });
+      let rec;
+      if (lineId) { rec = db.pitching.find(l => l.id === lineId); Object.assign(rec, data); }
+      else { rec = { id: uid(), ...data }; db.pitching.push(rec); }
+      pushOps([{ action: "upsert", collection: "pitching", record: rec }]);
       saveDB(); closeModal(); render(); toast("保存しました");
     };
     const del = modal.querySelector("#m-delete");
     if (del) del.onclick = () => {
       db.pitching = db.pitching.filter(l => l.id !== lineId);
+      pushOps([{ action: "delete", collection: "pitching", id: lineId }]);
       saveDB(); closeModal(); render(); toast("削除しました");
     };
   });
@@ -791,10 +811,52 @@ function exportTableCSV(cols, rows, name) {
 
 /* ---------- 設定・データ ---------- */
 
+function syncCardHTML() {
+  if (!syncEnabled()) {
+    return `
+    <div class="data-card">
+      <h4>チーム共有（スプレッドシート連携）</h4>
+      <p>Google スプレッドシートをチーム共通の保存先にすると、<b>誰が入力しても全員に反映</b>されます。
+      未接続の間、データはこの端末のブラウザ内にのみ保存されます。</p>
+      <details style="margin-bottom:12px;">
+        <summary style="cursor:pointer;color:var(--gold);font-size:13px;">セットアップ手順（チームで1回だけ・約10分）</summary>
+        <ol class="setup-steps">
+          <li><a href="https://sheets.new" target="_blank" rel="noopener">sheets.new</a> で空のスプレッドシートを作成</li>
+          <li>メニュー「拡張機能」→「Apps Script」を開く</li>
+          <li>リポジトリの <code>apps-script/Code.gs</code> の内容を貼り付けて保存し、冒頭の <code>TOKEN</code> を好きな合言葉に変更</li>
+          <li>「デプロイ」→「新しいデプロイ」→ 種類「ウェブアプリ」/ 実行ユーザー「自分」/ アクセス「全員」でデプロイ（初回は権限を承認）</li>
+          <li>発行された「ウェブアプリのURL」と合言葉を下に入力して接続</li>
+        </ol>
+      </details>
+      <div class="form-grid">
+        <div class="field wide"><label>ウェブアプリのURL</label><input id="sync-url" placeholder="https://script.google.com/macros/s/…/exec"></div>
+        <div class="field wide"><label>合言葉（Code.gs の TOKEN）</label><input id="sync-token"></div>
+      </div>
+      <div class="modal-actions" style="margin-top:12px;"><button class="btn btn-gold" id="btn-sync-connect">接続</button></div>
+    </div>`;
+  }
+  const st = syncStatus.state === "error"
+    ? `<span style="color:var(--danger);">⚠ 同期エラー: ${esc(syncStatus.message)}（未送信の変更は自動で再送されます）</span>`
+    : `<span style="color:var(--ok);">✓ 接続中</span>`;
+  return `
+    <div class="data-card">
+      <h4>チーム共有（スプレッドシート連携）</h4>
+      <p>${st}<br>保存先: <code style="word-break:break-all;">${esc(syncConf.url)}</code></p>
+      <p>チームメイトには下の「共有用リンク」を送ってください。開くだけで同じ共有データに接続されます（合言葉入力も不要）。</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-gold" id="btn-sync-share">共有用リンクをコピー</button>
+        <button class="btn" id="btn-sync-now">今すぐ同期</button>
+        <button class="btn btn-danger" id="btn-sync-disconnect">接続を解除</button>
+      </div>
+    </div>`;
+}
+
 function renderDataTab() {
   const el = document.getElementById("tab-data");
   const s = db.settings;
   el.innerHTML = `
+    <div class="section-title">チーム共有</div>
+    ${syncCardHTML()}
     <div class="section-title">設定</div>
     <div class="data-card">
       <div class="form-grid">
@@ -808,8 +870,10 @@ function renderDataTab() {
 
     <div class="section-title">データ管理</div>
     <div class="data-card">
-      <h4>バックアップ / 共有</h4>
-      <p>データはこのブラウザの localStorage に保存されています。機種変更やチーム内共有には JSON の書き出し・読み込みを使ってください。</p>
+      <h4>バックアップ</h4>
+      <p>${syncEnabled()
+        ? "データは共有スプレッドシートに保存されています(この端末にもキャッシュされます)。JSON書き出しは手元にバックアップを残したいときに使ってください。"
+        : "データはこのブラウザの localStorage に保存されています。機種変更やバックアップには JSON の書き出し・読み込みを使ってください。"}</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-gold" id="btn-export">JSON書き出し</button>
         <button class="btn" id="btn-import">JSON読み込み</button>
@@ -845,10 +909,49 @@ function renderDataTab() {
     </div>
   `;
 
+  // ---- チーム共有 ----
+  const connectBtn = el.querySelector("#btn-sync-connect");
+  if (connectBtn) connectBtn.onclick = async () => {
+    const url = el.querySelector("#sync-url").value;
+    const token = el.querySelector("#sync-token").value;
+    if (!url.trim()) { toast("ウェブアプリのURLを入力してください"); return; }
+    connectBtn.disabled = true;
+    connectBtn.textContent = "接続中…";
+    try {
+      await connectSync(url, token);
+      toast("チーム共有に接続しました");
+      renderDataTab();
+    } catch (e) {
+      toast("接続に失敗しました: " + e.message);
+      connectBtn.disabled = false;
+      connectBtn.textContent = "接続";
+    }
+  };
+  const shareBtn = el.querySelector("#btn-sync-share");
+  if (shareBtn) shareBtn.onclick = async () => {
+    const link = syncShareLink();
+    try {
+      await navigator.clipboard.writeText(link);
+      toast("共有用リンクをコピーしました。LINEなどで送ってください");
+    } catch (e) {
+      prompt("このリンクをコピーして共有してください", link);
+    }
+  };
+  const nowBtn = el.querySelector("#btn-sync-now");
+  if (nowBtn) nowBtn.onclick = () => syncPull(false);
+  const discBtn = el.querySelector("#btn-sync-disconnect");
+  if (discBtn) discBtn.onclick = () => {
+    if (!confirm("共有への接続を解除しますか？\n(共有データは残ります。この端末は現在の内容のままローカル保存に戻ります)")) return;
+    disconnectSync();
+    renderDataTab();
+    toast("接続を解除しました");
+  };
+
   el.querySelector("#s-save").onclick = () => {
     db.settings.qualPAperG = Math.max(0, +el.querySelector("#s-qpa").value || 0);
     db.settings.qualIPperG = Math.max(0, +el.querySelector("#s-qip").value || 0);
     db.settings.eraBasis = +el.querySelector("#s-era").value;
+    pushOps([{ action: "saveSettings", settings: db.settings }]);
     saveDB(); toast("設定を保存しました");
   };
 
@@ -873,6 +976,9 @@ function renderDataTab() {
         if (!confirm("現在のデータを読み込んだ内容で置き換えます。よろしいですか？")) return;
         db = { ...structuredClone(DEFAULT_DB), ...parsed,
                settings: { ...DEFAULT_DB.settings, ...(parsed.settings || {}) } };
+        if (syncEnabled() && confirm("読み込んだ内容で共有データ(スプレッドシート)も置き換えますか？\n(キャンセルすると次の同期で共有データ側の内容に戻ります)")) {
+          pushOps([{ action: "replaceAll", db: exportableDb() }]);
+        }
         saveDB(); currentSeason = ""; refreshSeasonSelect(); render(); toast("読み込みました");
       } catch (err) {
         toast("読み込みに失敗しました: " + err.message);
@@ -882,6 +988,7 @@ function renderDataTab() {
   };
 
   el.querySelector("#btn-sample").onclick = () => {
+    if (syncEnabled()) { toast("共有モード中はサンプルデータを読み込めません(共有データを上書きしてしまうため)"); return; }
     if ((db.players.length || db.games.length) &&
         !confirm("現在のデータをサンプルデータで置き換えます。よろしいですか？")) return;
     db = buildSampleData();
@@ -889,9 +996,11 @@ function renderDataTab() {
   };
 
   el.querySelector("#btn-reset").onclick = () => {
-    if (!confirm("全データを削除します。よろしいですか？")) return;
+    const sharedNote = syncEnabled() ? "\n※共有データ(スプレッドシート)も空になります。" : "";
+    if (!confirm("全データを削除します。よろしいですか？" + sharedNote)) return;
     if (!confirm("本当によろしいですか？ この操作は元に戻せません。")) return;
     db = structuredClone(DEFAULT_DB);
+    if (syncEnabled()) pushOps([{ action: "replaceAll", db: exportableDb() }]);
     saveDB(); currentSeason = ""; refreshSeasonSelect(); render(); toast("初期化しました");
   };
 }
@@ -1000,3 +1109,4 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal()
 
 refreshSeasonSelect();
 render();
+initSync();
