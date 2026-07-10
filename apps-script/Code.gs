@@ -32,9 +32,28 @@ const SCHEMAS = {
 const DATA_COLLECTIONS = ["players", "games", "batting", "pitching"];
 
 function doGet(e) {
-  const token = (e && e.parameter && e.parameter.token) || "";
-  if (token !== TOKEN) return json({ error: "合言葉が違います" });
-  return json({ ok: true, db: readAll() });
+  const p = (e && e.parameter) || {};
+  const cb = p.callback || "";
+  if ((p.token || "") !== TOKEN) return respond({ error: "合言葉が違います" }, cb);
+
+  const action = p.action || "all";
+  if (action === "all") return respond({ ok: true, db: readAll() }, cb);
+
+  // 書き込み系(JSONPフォールバック用): パラメータのpayloadにJSONを載せて呼ぶ
+  let body = {};
+  if (p.payload) {
+    try { body = JSON.parse(p.payload); }
+    catch (err) { return respond({ error: "payloadの形式が不正です" }, cb); }
+  }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    return respond(dispatch(action, body), cb);
+  } catch (err) {
+    return respond({ error: String(err && err.message || err) }, cb);
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function doPost(e) {
@@ -49,20 +68,25 @@ function doPost(e) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    switch (body.action) {
-      case "upsert":       upsert(body.collection, body.record); break;
-      case "delete":       remove(body.collection, body.id); break;
-      case "deleteWhere":  deleteWhere(body.collection, body.field, body.value); break;
-      case "saveSettings": saveSettings(body.settings); break;
-      case "replaceAll":   replaceAll(body.db || {}); break;
-      default: return json({ error: "不明な操作: " + body.action });
-    }
-    return json({ ok: true });
+    return json(dispatch(body.action, body));
   } catch (err) {
     return json({ error: String(err && err.message || err) });
   } finally {
     lock.releaseLock();
   }
+}
+
+function dispatch(action, body) {
+  switch (action) {
+    case "upsert":       upsert(body.collection, body.record); break;
+    case "delete":       remove(body.collection, body.id); break;
+    case "deleteWhere":  deleteWhere(body.collection, body.field, body.value); break;
+    case "saveSettings": saveSettings(body.settings); break;
+    case "replaceAll":   replaceAll(body.db || {}); break;
+    case "clearAll":     replaceAll({}); break;
+    default: return { error: "不明な操作: " + action };
+  }
+  return { ok: true };
 }
 
 /* ---------------- helpers ---------------- */
@@ -71,6 +95,16 @@ function json(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// callback付き(JSONP)なら JavaScript として、なければ JSON として返す
+function respond(obj, callback) {
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + "(" + JSON.stringify(obj) + ")")
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return json(obj);
 }
 
 function sheet(name) {
