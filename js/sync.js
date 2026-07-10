@@ -86,7 +86,14 @@ async function safeFetch(url, opts) {
   try {
     return await fetch(url, opts);
   } catch (e) {
-    throw new Error("サーバーに接続できません。URLが正しいか、通信環境を確認してください");
+    // ログインが必要な設定のままだと accounts.google.com へのリダイレクトが
+    // CORSで遮断され、通信エラーと同じ見え方になる
+    throw new Error(
+      "サーバーに接続できません。Apps Scriptのデプロイ設定が" +
+      "「次のユーザーとして実行: 自分」「アクセスできるユーザー: 全員」になっているか確認してください" +
+      "(設定変更後は「デプロイを管理」から新バージョンとして再デプロイ)。" +
+      "設定が正しい場合はURLと通信環境を確認してください"
+    );
   }
 }
 
