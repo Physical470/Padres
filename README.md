@@ -45,4 +45,5 @@ index.html      … 画面構造
 css/style.css   … パドレスカラーのテーマ
 js/stats.js     … 指標計算エンジン(純関数)
 js/app.js       … 状態管理・描画・入力フォーム・localStorage永続化
+fonts/          … 同梱Webフォント(Graduate / Oswald, latinサブセット)
 ```
