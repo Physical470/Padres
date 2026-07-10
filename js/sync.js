@@ -52,7 +52,7 @@ async function flushQueue() {
   try {
     let q = loadQueue();
     while (q.length) {
-      await apiPost(q[0]);
+      await sendOp(q[0]);
       q = loadQueue();
       q.shift();
       saveQueue(q);
@@ -74,11 +74,13 @@ async function parseApiResponse(res) {
   } catch (e) {
     // Apps Scriptが正しく公開されていないと、JSONではなく
     // Googleのログイン/エラーページ(HTML)が返ってくる
-    throw new Error(
+    const err = new Error(
       "サーバーの応答を読み取れません。Apps Scriptのデプロイ設定を確認してください:" +
       " ①種類が「ウェブアプリ」 ②アクセスできるユーザーが「全員」" +
       " ③URLが「ウェブアプリのURL」(https://script.google.com/macros/s/…/exec)"
     );
+    err.network = true;
+    throw err;
   }
 }
 
@@ -88,23 +90,90 @@ async function safeFetch(url, opts) {
   } catch (e) {
     // ログインが必要な設定のままだと accounts.google.com へのリダイレクトが
     // CORSで遮断され、通信エラーと同じ見え方になる
-    throw new Error(
+    const err = new Error(
       "サーバーに接続できません。Apps Scriptのデプロイ設定が" +
       "「次のユーザーとして実行: 自分」「アクセスできるユーザー: 全員」になっているか確認してください" +
       "(設定変更後は「デプロイを管理」から新バージョンとして再デプロイ)。" +
       "設定が正しい場合はURLと通信環境を確認してください"
     );
+    err.network = true;
+    throw err;
   }
 }
 
-async function apiGet(conf) {
-  const c = conf || syncConf;
-  const sep = c.url.includes("?") ? "&" : "?";
-  const res = await safeFetch(`${c.url}${sep}token=${encodeURIComponent(c.token || "")}&action=all`);
-  const data = await parseApiResponse(res);
+/* ---- JSONPトランスポート ----
+   fetchがCORS等で遮断される環境向けの代替経路。<script>タグ経由なので
+   CORSの影響を受けない。Code.gs側の callback / payload 対応が必要。 */
+
+function transportOf(c) { return (c && c.transport) || "fetch"; }
+
+function jsonpRequest(c, params) {
+  return new Promise((resolve, reject) => {
+    const cb = "__padresCb" + Date.now().toString(36) + Math.floor(Math.random() * 1e6);
+    const script = document.createElement("script");
+    let timer;
+    const cleanup = () => { delete window[cb]; script.remove(); clearTimeout(timer); };
+    window[cb] = data => { cleanup(); resolve(data); };
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("サーバーに接続できません。URLと通信環境を確認してください"));
+    };
+    timer = setTimeout(() => {
+      cleanup();
+      reject(new Error(
+        "サーバーから応答がありません。Code.gsが最新版か(貼り付け後に保存したか)、" +
+        "デプロイを「新バージョン」で更新したか確認してください"
+      ));
+    }, 15000);
+    const sep = c.url.includes("?") ? "&" : "?";
+    script.src = `${c.url}${sep}token=${encodeURIComponent(c.token || "")}&${params}&callback=${cb}&_=${Date.now()}`;
+    document.head.appendChild(script);
+  });
+}
+
+async function jsonpGet(c) {
+  const data = await jsonpRequest(c, "action=all");
   if (data.error) throw new Error(data.error);
   if (!data.db) throw new Error("応答の形式が不正です(Code.gsが最新か確認してください)");
   return data.db;
+}
+
+async function jsonpOp(op) {
+  const payload = { ...op };
+  delete payload.action;
+  const data = await jsonpRequest(
+    syncConf,
+    `action=${encodeURIComponent(op.action)}&payload=${encodeURIComponent(JSON.stringify(payload))}`
+  );
+  if (data.error) throw new Error(data.error);
+}
+
+function persistTransport(c, t) {
+  c.transport = t;
+  if (c === syncConf) saveSyncConf(syncConf);
+}
+
+/* ---- 送受信(fetch優先・失敗時はJSONPへ自動切替) ---- */
+
+async function apiGet(conf) {
+  const c = conf || syncConf;
+  if (transportOf(c) !== "jsonp") {
+    try {
+      const sep = c.url.includes("?") ? "&" : "?";
+      const res = await safeFetch(`${c.url}${sep}token=${encodeURIComponent(c.token || "")}&action=all`);
+      const data = await parseApiResponse(res);
+      if (data.error) throw new Error(data.error);
+      if (!data.db) throw new Error("応答の形式が不正です(Code.gsが最新か確認してください)");
+      return data.db;
+    } catch (e) {
+      if (!e.network) throw e;
+      // fetchが遮断される環境ではJSONPに切り替えて再試行
+      const db = await jsonpGet(c).catch(() => { throw e; });
+      persistTransport(c, "jsonp");
+      return db;
+    }
+  }
+  return jsonpGet(c);
 }
 
 async function apiPost(op) {
@@ -116,6 +185,37 @@ async function apiPost(op) {
   });
   const data = await parseApiResponse(res);
   if (data.error) throw new Error(data.error);
+}
+
+async function sendOp(op) {
+  if (transportOf(syncConf) !== "jsonp") {
+    try {
+      await apiPost(op);
+      return;
+    } catch (e) {
+      if (!e.network) throw e;
+      await sendOpJsonp(op).catch(() => { throw e; });
+      persistTransport(syncConf, "jsonp");
+      return;
+    }
+  }
+  await sendOpJsonp(op);
+}
+
+async function sendOpJsonp(op) {
+  if (op.action === "replaceAll") {
+    // URL長の制限があるため、全置換は1レコードずつに分解して送る
+    const d = op.db || {};
+    await jsonpOp({ action: "clearAll" });
+    for (const col of ["players", "games", "batting", "pitching"]) {
+      for (const rec of d[col] || []) {
+        await jsonpOp({ action: "upsert", collection: col, record: rec });
+      }
+    }
+    await jsonpOp({ action: "saveSettings", settings: d.settings || {} });
+    return;
+  }
+  await jsonpOp(op);
 }
 
 /* ---------------- 取得と正規化 ---------------- */
