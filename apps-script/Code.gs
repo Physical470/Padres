@@ -134,7 +134,10 @@ function findRow(sh, id) {
 }
 
 function readAll() {
-  const tz = Session.getScriptTimeZone() || "Asia/Tokyo";
+  // 日付セルは「スプレッドシート自身のタイムゾーン」で文字列に戻す。
+  // 書き込み時の解釈と同じTZを使うことで往復しても日付がずれない
+  // (スクリプトのTZは既定が米国東部のことがあり、1日前にずれる原因になる)
+  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone() || "Asia/Tokyo";
   const out = {};
   DATA_COLLECTIONS.forEach(function (col) {
     const sh = sheet(col);
