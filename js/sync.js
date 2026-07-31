@@ -9,12 +9,17 @@
 const SYNC_CONF_KEY = "padres-sync-config";
 const SYNC_QUEUE_KEY = "padres-sync-queue";
 
+// このアプリが想定する Code.gs の版数。接続先がこれより古い場合は
+// 貼り替え・再デプロイが未反映なので、共有カードで警告する
+const SYNC_EXPECTED_VERSION = "4";
+
 let syncConf = null;
 try { syncConf = JSON.parse(localStorage.getItem(SYNC_CONF_KEY) || "null"); } catch (e) { /* ignore */ }
 
 let syncBusy = false;
 let syncPulling = false;
 let syncStatus = { state: syncConf ? "idle" : "off", at: null, message: "" };
+let syncServerVersion = null;   // 接続先Code.gsの版数(再デプロイの反映確認用)
 
 function syncEnabled() { return !!(syncConf && syncConf.url); }
 
@@ -135,6 +140,7 @@ async function jsonpGet(c) {
   const data = await jsonpRequest(c, "action=all");
   if (data.error) throw new Error(data.error);
   if (!data.db) throw new Error("応答の形式が不正です(Code.gsが最新か確認してください)");
+  syncServerVersion = data.version || "旧";
   return data.db;
 }
 
@@ -164,6 +170,7 @@ async function apiGet(conf) {
       const data = await parseApiResponse(res);
       if (data.error) throw new Error(data.error);
       if (!data.db) throw new Error("応答の形式が不正です(Code.gsが最新か確認してください)");
+      syncServerVersion = data.version || "旧";
       return data.db;
     } catch (e) {
       if (!e.network) throw e;
@@ -225,6 +232,15 @@ const SYNC_PIT_NUMS = ["GS","OUTS","BF","HA","HRA","BBA","HBPA","SOA","RA","ER",
 
 function normDate(v) {
   const s = String(v || "");
+  if (!s) return "";
+  // サーバーが日付型のまま(ISOタイムスタンプで)返した場合も、
+  // 最も近い日付に丸めることでタイムゾーン差による1日ズレを防ぐ
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+    const t = Date.parse(s);
+    if (!isNaN(t)) {
+      return new Date(Math.round(t / 86400000) * 86400000).toISOString().slice(0, 10);
+    }
+  }
   return s.length > 10 ? s.slice(0, 10) : s;
 }
 

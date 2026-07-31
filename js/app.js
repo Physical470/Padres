@@ -49,6 +49,14 @@ function saveDB() {
 
 function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
 
+// 今日の日付(端末のローカル日付)。toISOString()はUTC基準なので
+// 日本時間の朝9時前だと前日になってしまう
+function todayStr() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
 /* ================= ユーティリティ ================= */
 
 function esc(s) {
@@ -443,7 +451,7 @@ function gameCardHTML(g) {
 }
 
 function openGameModal(gid) {
-  const g = gid ? gameById(gid) : { date: new Date().toISOString().slice(0, 10), scoreFor: 0, scoreAgainst: 0 };
+  const g = gid ? gameById(gid) : { date: todayStr(), scoreFor: 0, scoreAgainst: 0 };
   openModal(`
     <h3>${gid ? "試合を編集" : "試合を追加"}</h3>
     <div class="form-grid">
@@ -838,10 +846,16 @@ function syncCardHTML() {
   const st = syncStatus.state === "error"
     ? `<span style="color:var(--danger);">⚠ 同期エラー: ${esc(syncStatus.message)}（未送信の変更は自動で再送されます）</span>`
     : `<span style="color:var(--ok);">✓ 接続中</span>`;
+  const ver = syncServerVersion === null
+    ? ""
+    : syncServerVersion === SYNC_EXPECTED_VERSION
+      ? `<br><span style="color:var(--ok);">Code.gs 版数: ${esc(syncServerVersion)}（最新）</span>`
+      : `<br><span style="color:var(--danger);">⚠ Code.gs 版数: ${esc(syncServerVersion)}（最新は ${SYNC_EXPECTED_VERSION}）。
+         Apps Scriptに最新のCode.gsを貼り付けて保存し、「デプロイを管理」→鉛筆→バージョン「新バージョン」で再デプロイしてください</span>`;
   return `
     <div class="data-card">
       <h4>チーム共有（スプレッドシート連携）</h4>
-      <p>${st}<br>保存先: <code style="word-break:break-all;">${esc(syncConf.url)}</code></p>
+      <p>${st}${ver}<br>保存先: <code style="word-break:break-all;">${esc(syncConf.url)}</code></p>
       <p>チームメイトには下の「共有用リンク」を送ってください。開くだけで同じ共有データに接続されます（合言葉入力も不要）。</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-gold" id="btn-sync-share">共有用リンクをコピー</button>

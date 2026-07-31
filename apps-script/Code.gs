@@ -21,6 +21,9 @@
 
 const TOKEN = "padres";
 
+// 貼り替え・再デプロイが反映されたか確認するための版数(アプリの共有カードに表示されます)
+const VERSION = "4";
+
 const SCHEMAS = {
   players:  ["id","name","number","pos","throws","bats","active"],
   games:    ["id","date","opponent","place","scoreFor","scoreAgainst","note"],
@@ -37,7 +40,7 @@ function doGet(e) {
   if ((p.token || "") !== TOKEN) return respond({ error: "合言葉が違います" }, cb);
 
   const action = p.action || "all";
-  if (action === "all") return respond({ ok: true, db: readAll() }, cb);
+  if (action === "all") return respond({ ok: true, version: VERSION, db: readAll() }, cb);
 
   // 書き込み系(JSONPフォールバック用): パラメータのpayloadにJSONを載せて呼ぶ
   let body = {};
@@ -116,7 +119,33 @@ function sheet(name) {
     sh.appendRow(SCHEMAS[name]);
     sh.setFrozenRows(1);
   }
+  if (name === "games") ensureGamesDateAsText(sh);
   return sh;
+}
+
+/**
+ * games の日付列を「文字列」で持つようにする(1回だけ実行)。
+ * 日付型のままだとシートが勝手にTZ付きの日時に変換してしまうため、
+ * 入力した yyyy-MM-dd をそのまま保持する形に寄せる。
+ */
+function ensureGamesDateAsText(sh) {
+  try {
+    const props = PropertiesService.getScriptProperties();
+    if (props.getProperty("gamesDateAsText") === "1") return;
+    const last = sh.getLastRow();
+    if (last >= 2) {
+      const rng = sh.getRange(2, 2, last - 1, 1);
+      const fixed = rng.getValues().map(row => [
+        row[0] instanceof Date ? dateToYmd(row[0]) : String(row[0] === null || row[0] === undefined ? "" : row[0])
+      ]);
+      rng.setNumberFormat("@");   // 先に書式を文字列にしてから書き戻す
+      rng.setValues(fixed);
+    }
+    sh.getRange("B2:B").setNumberFormat("@");
+    props.setProperty("gamesDateAsText", "1");
+  } catch (err) {
+    // 移行に失敗しても読み書き自体は続行できるようにする
+  }
 }
 
 function guardCollection(col) {
@@ -133,11 +162,19 @@ function findRow(sh, id) {
   return -1;
 }
 
+/**
+ * 日付セル(Dateオブジェクト)を yyyy-MM-dd に戻す。
+ * シートに保存された日付は「どこかのタイムゾーンの深夜0時」を指す瞬間なので、
+ * 最も近い日付に丸めることで、スクリプト/シート/端末のTZ設定に一切依存せず
+ * 元の日付を復元できる(TZ差は最大±14時間 < 12時間超のズレのみ影響)。
+ */
+function dateToYmd(v) {
+  const d = new Date(Math.round(v.getTime() / 86400000) * 86400000);
+  const p = n => (n < 10 ? "0" : "") + n;
+  return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate());
+}
+
 function readAll() {
-  // 日付セルは「スプレッドシート自身のタイムゾーン」で文字列に戻す。
-  // 書き込み時の解釈と同じTZを使うことで往復しても日付がずれない
-  // (スクリプトのTZは既定が米国東部のことがあり、1日前にずれる原因になる)
-  const tz = SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone() || "Asia/Tokyo";
   const out = {};
   DATA_COLLECTIONS.forEach(function (col) {
     const sh = sheet(col);
@@ -149,7 +186,7 @@ function readAll() {
       SCHEMAS[col].forEach(function (f, i) {
         let v = data[r][i];
         // 日付セルは "yyyy-MM-dd" 文字列に戻す(タイムゾーンずれ防止)
-        if (v instanceof Date) v = Utilities.formatDate(v, tz, "yyyy-MM-dd");
+        if (v instanceof Date) v = dateToYmd(v);
         rec[f] = v;
       });
       recs.push(rec);
