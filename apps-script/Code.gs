@@ -22,7 +22,7 @@
 const TOKEN = "padres";
 
 // 貼り替え・再デプロイが反映されたか確認するための版数(アプリの共有カードに表示されます)
-const VERSION = "5";
+const VERSION = "6";
 
 const SCHEMAS = {
   players:  ["id","name","number","pos","throws","bats","active"],
@@ -156,11 +156,21 @@ function serialToYmd(n) {
   return dateToYmd(new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000));
 }
 
-// セルの値を yyyy-MM-dd 文字列に正規化する(日付型・シリアル値・文字列すべて対応)
+/**
+ * セルの値を yyyy-MM-dd に正規化する。
+ * 日付型・シリアル値・"Wed May 13 2026 …" のような文字列いずれにも対応。
+ */
 function toYmd(v) {
   if (v instanceof Date) return dateToYmd(v);
   if (typeof v === "number" && v > 20000 && v < 80000) return serialToYmd(v);
-  return String(v === null || v === undefined ? "" : v);
+  const s = String(v === null || v === undefined ? "" : v).trim();
+  if (!s) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (s.length >= 8) {
+    const t = Date.parse(s);
+    if (!isNaN(t)) return dateToYmd(new Date(t));
+  }
+  return s;
 }
 
 function readAll() {

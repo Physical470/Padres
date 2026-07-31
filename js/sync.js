@@ -11,7 +11,7 @@ const SYNC_QUEUE_KEY = "padres-sync-queue";
 
 // このアプリが想定する Code.gs の版数。接続先がこれより古い場合は
 // 貼り替え・再デプロイが未反映なので、共有カードで警告する
-const SYNC_EXPECTED_VERSION = "5";
+const SYNC_EXPECTED_VERSION = "6";
 
 let syncConf = null;
 try { syncConf = JSON.parse(localStorage.getItem(SYNC_CONF_KEY) || "null"); } catch (e) { /* ignore */ }
@@ -230,23 +230,32 @@ async function sendOpJsonp(op) {
 const SYNC_BAT_NUMS = ["AB","R","H","D2","T3","HR","RBI","BB","HBP","SO","SH","SF","GDP","SB","CS"];
 const SYNC_PIT_NUMS = ["GS","OUTS","BF","HA","HRA","BBA","HBPA","SOA","RA","ER","W","L","SV","HLD"];
 
+// 瞬間(ミリ秒)を最も近い日付に丸めて yyyy-MM-dd にする(TZ差の1日ズレ防止)
+function msToYmd(t) {
+  return new Date(Math.round(t / 86400000) * 86400000).toISOString().slice(0, 10);
+}
+
+/**
+ * どんな形で返ってきた日付も yyyy-MM-dd に正規化する。
+ *  - "2026-05-13"                        … そのまま
+ *  - "2026-05-13T00:00:00.000Z"          … 日付型のまま返ったISO
+ *  - "Wed May 13 2026 00:00:00 GMT+0900" … 日付が文字列化されたもの
+ *  - 46208                               … 書式崩れによるシリアル値
+ */
 function normDate(v) {
   const s = String(v ?? "").trim();
   if (!s) return "";
-  // サーバーが日付型のまま(ISOタイムスタンプで)返した場合も、
-  // 最も近い日付に丸めることでタイムゾーン差による1日ズレを防ぐ
-  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
-    const t = Date.parse(s);
-    if (!isNaN(t)) {
-      return new Date(Math.round(t / 86400000) * 86400000).toISOString().slice(0, 10);
-    }
-  }
-  // 書式崩れでシリアル値(1899-12-30起点の日数)として返ってきた場合の復旧
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // シリアル値(1899-12-30起点の日数)
   if (/^\d{5}(\.\d+)?$/.test(s)) {
     const n = Math.round(parseFloat(s));
-    if (n > 20000 && n < 80000) {
-      return new Date(Date.UTC(1899, 11, 30) + n * 86400000).toISOString().slice(0, 10);
-    }
+    if (n > 20000 && n < 80000) return msToYmd(Date.UTC(1899, 11, 30) + n * 86400000);
+  }
+  // ISO / 英語表記など、日付として解釈できる文字列
+  if (s.length >= 8) {
+    const t = Date.parse(s);
+    if (!isNaN(t)) return msToYmd(t);
   }
   return s.length > 10 ? s.slice(0, 10) : s;
 }
@@ -300,6 +309,30 @@ function exportableDb() {
   };
 }
 
+let dateRepairDone = false;
+
+/**
+ * シート側の日付が yyyy-MM-dd で無い行(英語表記・シリアル値など)を、
+ * 正規化した値で1件ずつ静かに直す。ISO形式(日付セル)は対象外なので
+ * 直し続けるループにはならない。1回の読み込みにつき一度だけ実行。
+ */
+function repairRemoteDates(remote) {
+  if (!syncEnabled() || dateRepairDone) return;
+  const rawById = new Map((remote.games || []).map(g => [String(g.id), String(g.date ?? "").trim()]));
+  const ops = [];
+  for (const g of db.games) {
+    const raw = rawById.get(g.id);
+    if (raw === undefined) continue;
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) continue;      // 既に正しい形/ISO日付セルは触らない
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(g.date || "")) continue; // 正しく直せた行のみ
+    ops.push({ action: "upsert", collection: "games", record: g });
+  }
+  if (ops.length) {
+    dateRepairDone = true;
+    pushOps(ops);
+  }
+}
+
 async function syncPull(silent) {
   if (!syncEnabled() || syncPulling) return;
   // 入力モーダルを開いている間は表示を差し替えない
@@ -311,6 +344,7 @@ async function syncPull(silent) {
     const remote = await apiGet();
     db = normalizeRemote(remote);
     saveDB();
+    repairRemoteDates(remote);
     refreshSeasonSelect();
     render();
     setSyncStatus("ok");
