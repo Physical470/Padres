@@ -11,7 +11,7 @@ const SYNC_QUEUE_KEY = "padres-sync-queue";
 
 // このアプリが想定する Code.gs の版数。接続先がこれより古い場合は
 // 貼り替え・再デプロイが未反映なので、共有カードで警告する
-const SYNC_EXPECTED_VERSION = "4";
+const SYNC_EXPECTED_VERSION = "5";
 
 let syncConf = null;
 try { syncConf = JSON.parse(localStorage.getItem(SYNC_CONF_KEY) || "null"); } catch (e) { /* ignore */ }
@@ -231,7 +231,7 @@ const SYNC_BAT_NUMS = ["AB","R","H","D2","T3","HR","RBI","BB","HBP","SO","SH","S
 const SYNC_PIT_NUMS = ["GS","OUTS","BF","HA","HRA","BBA","HBPA","SOA","RA","ER","W","L","SV","HLD"];
 
 function normDate(v) {
-  const s = String(v || "");
+  const s = String(v ?? "").trim();
   if (!s) return "";
   // サーバーが日付型のまま(ISOタイムスタンプで)返した場合も、
   // 最も近い日付に丸めることでタイムゾーン差による1日ズレを防ぐ
@@ -239,6 +239,13 @@ function normDate(v) {
     const t = Date.parse(s);
     if (!isNaN(t)) {
       return new Date(Math.round(t / 86400000) * 86400000).toISOString().slice(0, 10);
+    }
+  }
+  // 書式崩れでシリアル値(1899-12-30起点の日数)として返ってきた場合の復旧
+  if (/^\d{5}(\.\d+)?$/.test(s)) {
+    const n = Math.round(parseFloat(s));
+    if (n > 20000 && n < 80000) {
+      return new Date(Date.UTC(1899, 11, 30) + n * 86400000).toISOString().slice(0, 10);
     }
   }
   return s.length > 10 ? s.slice(0, 10) : s;

@@ -76,11 +76,16 @@ function toast(msg) {
 function playerById(id) { return db.players.find(p => p.id === id); }
 function gameById(id)   { return db.games.find(g => g.id === id); }
 
-function seasonOf(game) { return (game.date || "").slice(0, 4); }
+// 年が読み取れない日付は "" を返す(不正な値で年を作らない)
+function seasonOf(game) {
+  const m = /^(\d{4})-\d{2}-\d{2}/.exec(String(game.date || ""));
+  return m ? m[1] : "";
+}
 
 function seasonGames() {
   const gs = db.games.slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  return currentSeason ? gs.filter(g => seasonOf(g) === currentSeason) : gs;
+  // 日付が不明な試合はどのシーズンでも表示する(データが画面から消えないように)
+  return currentSeason ? gs.filter(g => { const s = seasonOf(g); return s === currentSeason || s === ""; }) : gs;
 }
 
 function seasonGameIds() { return new Set(seasonGames().map(g => g.id)); }
@@ -424,7 +429,7 @@ function gameCardHTML(g) {
   return `
   <div class="game-card">
     <div class="game-head">
-      <span class="game-date">${esc(g.date)}</span>
+      <span class="game-date">${g.date ? esc(g.date) : '<span style="color:var(--danger)">日付未設定</span>'}</span>
       <span class="game-vs">vs ${esc(g.opponent)}${g.place ? ` <span style="color:var(--ink-muted);font-weight:400;font-size:12px;">@${esc(g.place)}</span>` : ""}</span>
       <span class="game-score">${g.scoreFor} - ${g.scoreAgainst}</span>
       ${badge}
