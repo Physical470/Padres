@@ -22,7 +22,7 @@
 const TOKEN = "padres";
 
 // 貼り替え・再デプロイが反映されたか確認するための版数(アプリの共有カードに表示されます)
-const VERSION = "4";
+const VERSION = "5";
 
 const SCHEMAS = {
   players:  ["id","name","number","pos","throws","bats","active"],
@@ -119,33 +119,7 @@ function sheet(name) {
     sh.appendRow(SCHEMAS[name]);
     sh.setFrozenRows(1);
   }
-  if (name === "games") ensureGamesDateAsText(sh);
   return sh;
-}
-
-/**
- * games の日付列を「文字列」で持つようにする(1回だけ実行)。
- * 日付型のままだとシートが勝手にTZ付きの日時に変換してしまうため、
- * 入力した yyyy-MM-dd をそのまま保持する形に寄せる。
- */
-function ensureGamesDateAsText(sh) {
-  try {
-    const props = PropertiesService.getScriptProperties();
-    if (props.getProperty("gamesDateAsText") === "1") return;
-    const last = sh.getLastRow();
-    if (last >= 2) {
-      const rng = sh.getRange(2, 2, last - 1, 1);
-      const fixed = rng.getValues().map(row => [
-        row[0] instanceof Date ? dateToYmd(row[0]) : String(row[0] === null || row[0] === undefined ? "" : row[0])
-      ]);
-      rng.setNumberFormat("@");   // 先に書式を文字列にしてから書き戻す
-      rng.setValues(fixed);
-    }
-    sh.getRange("B2:B").setNumberFormat("@");
-    props.setProperty("gamesDateAsText", "1");
-  } catch (err) {
-    // 移行に失敗しても読み書き自体は続行できるようにする
-  }
 }
 
 function guardCollection(col) {
@@ -174,6 +148,21 @@ function dateToYmd(v) {
   return d.getUTCFullYear() + "-" + p(d.getUTCMonth() + 1) + "-" + p(d.getUTCDate());
 }
 
+/**
+ * 日付セルの書式が「書式なし/文字列」に変わってしまい、シリアル値(数値)として
+ * 読めてしまう場合の復旧。シートのシリアル値は 1899-12-30 起点の日数。
+ */
+function serialToYmd(n) {
+  return dateToYmd(new Date(Date.UTC(1899, 11, 30) + Math.round(n) * 86400000));
+}
+
+// セルの値を yyyy-MM-dd 文字列に正規化する(日付型・シリアル値・文字列すべて対応)
+function toYmd(v) {
+  if (v instanceof Date) return dateToYmd(v);
+  if (typeof v === "number" && v > 20000 && v < 80000) return serialToYmd(v);
+  return String(v === null || v === undefined ? "" : v);
+}
+
 function readAll() {
   const out = {};
   DATA_COLLECTIONS.forEach(function (col) {
@@ -185,8 +174,8 @@ function readAll() {
       const rec = {};
       SCHEMAS[col].forEach(function (f, i) {
         let v = data[r][i];
-        // 日付セルは "yyyy-MM-dd" 文字列に戻す(タイムゾーンずれ防止)
-        if (v instanceof Date) v = dateToYmd(v);
+        // 日付は "yyyy-MM-dd" 文字列に戻す(タイムゾーンずれ・書式崩れの両方に対応)
+        if (f === "date" || v instanceof Date) v = toYmd(v);
         rec[f] = v;
       });
       recs.push(rec);
