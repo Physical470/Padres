@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#2F241D">
+<title>さざんかリーグ 順位表・優勝争いシミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+@font-face {
+  font-family: "Graduate"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("fonts/graduate-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Oswald"; font-style: normal; font-weight: 200 700; font-display: swap;
+  src: url("fonts/oswald-latin.woff2") format("woff2");
+}
+
+:root {
+  --bg: #1C1510; --surface: #2F241D; --surface-2: #3A2D24; --surface-3: #46372C;
+  --line: #4E3E31; --gold: #FFC425; --gold-deep: #D9A410;
+  --ink: #FFF8EC; --ink-2: #D8C9B2; --ink-muted: #A8977E;
+  --win: #7FBF7F; --lose: #E5715F; --draw: #A8977E;
+  --font-display: "Oswald", "Noto Sans JP", sans-serif;
+  --font-brand: "Graduate", "Oswald", serif;
+  --font-body: "Noto Sans JP", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+}
+
+header {
+  background-image:
+    linear-gradient(180deg, rgba(28,21,16,.4) 0%, rgba(47,36,29,.4) 100%),
+    repeating-linear-gradient(90deg, var(--surface) 0, var(--surface) 10px, #3B2D23 10px, #3B2D23 12px);
+  background-color: var(--surface);
+  border-bottom: 3px solid var(--gold);
+  padding: 16px 18px 14px;
+}
+.header-inner { max-width: 1080px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+.mark {
+  position: relative; width: 52px; height: 52px; border-radius: 50%;
+  background: #241B14; border: 2px solid var(--gold);
+  box-shadow: 0 0 0 3px #241B14; flex-shrink: 0;
+}
+.mark span {
+  position: absolute; font-family: var(--font-brand); color: var(--gold); line-height: 1;
+  text-shadow: -2px 0 0 #241B14, 2px 0 0 #241B14, 0 -2px 0 #241B14, 0 2px 0 #241B14;
+}
+.mark .s { font-size: 27px; left: 7px; top: 6px; z-index: 1; }
+.mark .d { font-size: 27px; left: 21px; top: 18px; z-index: 2; }
+h1 {
+  font-family: var(--font-brand); font-weight: 400; font-size: 20px;
+  letter-spacing: 1px; color: var(--gold); margin: 0; line-height: 1.2;
+}
+.sub { font-size: 12px; color: var(--ink-2); }
+
+main { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+
+h2 {
+  font-family: var(--font-brand); font-size: 15px; font-weight: 400; letter-spacing: 1.5px;
+  color: var(--gold); text-transform: uppercase; margin: 28px 0 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+h2:first-child { margin-top: 4px; }
+h2 .note { font-family: var(--font-body); font-size: 12px; letter-spacing: 0; color: var(--ink-muted); text-transform: none; }
+
+/* ---- verdict ---- */
+.verdict {
+  background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--gold);
+  border-radius: 10px; padding: 16px 18px; margin-bottom: 12px;
+}
+.verdict .lead { font-size: 13px; color: var(--ink-muted); letter-spacing: 1px; }
+.verdict .answer {
+  font-family: var(--font-display); font-size: clamp(24px, 5vw, 34px); font-weight: 600;
+  color: var(--gold); line-height: 1.25; margin: 2px 0 6px;
+}
+.verdict .detail { font-size: 13px; color: var(--ink-2); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 13px; }
+.tile .lbl { font-size: 11px; color: var(--ink-muted); letter-spacing: 1px; }
+.tile .val { font-family: var(--font-display); font-size: 26px; font-weight: 600; line-height: 1.2; }
+.tile .val.gold { color: var(--gold); }
+
+/* ---- tables ---- */
+.wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; white-space: nowrap; }
+th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid rgba(78,62,49,.55); }
+th {
+  background: var(--surface-2); color: var(--ink-2); font-family: var(--font-display);
+  font-weight: 600; font-size: 12px; position: sticky; top: 0;
+}
+th:nth-child(-n+2), td:nth-child(-n+2) { text-align: left; }
+td.num { font-family: var(--font-display); font-size: 14px; }
+tbody tr:last-child td { border-bottom: none; }
+tr.me td { background: rgba(255,196,37,.10); }
+tr.me td:nth-child(2) { color: var(--gold); font-weight: 700; }
+tr.cut td { border-bottom: 2px solid var(--gold-deep); }
+.rank { font-family: var(--font-display); font-size: 15px; color: var(--ink-muted); }
+tr.me .rank { color: var(--gold); }
+.pts { font-family: var(--font-display); font-size: 16px; font-weight: 600; }
+
+/* ---- condition table ---- */
+.cond td.ok { color: var(--win); }
+.cond td.ng { color: var(--lose); }
+.cond tr.line td { border-bottom: 2px solid var(--gold-deep); }
+
+/* ---- fixtures ---- */
+.fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 8px; }
+.fx {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 12px; display: flex; align-items: center; gap: 10px;
+}
+.fx.pad { border-color: var(--gold-deep); background: #33271F; }
+.fx .date { font-family: var(--font-display); font-size: 12px; color: var(--ink-muted); width: 42px; flex-shrink: 0; }
+.fx .teams { flex: 1; font-size: 13px; min-width: 0; }
+.fx .teams b { color: var(--gold); font-weight: 700; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; flex-shrink: 0; }
+.seg button {
+  background: var(--surface-2); border: none; color: var(--ink-2);
+  font-family: var(--font-display); font-size: 12px; padding: 4px 9px; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--gold); color: #2F241D; font-weight: 700; }
+.seg button.on.l { background: var(--lose); color: #2A1512; }
+.seg button.on.d { background: var(--surface-3); color: var(--ink); }
+
+.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.btn {
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 14px; font-family: var(--font-body); font-size: 13px; cursor: pointer;
+}
+.btn:hover { background: var(--surface-3); }
+.btn.gold { background: var(--gold); color: #2F241D; border-color: var(--gold); font-weight: 700; }
+.hint { font-size: 12px; color: var(--ink-muted); margin: 8px 2px 0; }
+
+footer {
+  text-align: center; padding: 22px; color: var(--ink-muted);
+  font-family: var(--font-brand); letter-spacing: 3px; font-size: 10px; border-top: 1px solid var(--line);
+}
+@media (max-width: 520px) {
+  h1 { font-size: 16px; }
+  .fx { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="mark" aria-hidden="true"><span class="s">S</span><span class="d">D</span></div>
+    <div>
+      <h1>SAZANKA LEAGUE 2026</h1>
+      <div class="sub">さざんかリーグ 順位表・残り試合シミュレーター（世田谷パドレス視点）</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h2>4位以内の条件 <span class="note">他チームの結果が最悪でも達成できるライン</span></h2>
+  <div id="verdict"></div>
+  <div class="tiles" id="tiles"></div>
+
+  <h2>必要な勝敗 <span class="note">パドレスの残り試合の成績ごとの到達順位</span></h2>
+  <div class="wrap"><table class="cond"><thead>
+    <tr><th>成績</th><th>勝点</th><th>最悪</th><th>最良</th><th>4位以内</th></tr>
+  </thead><tbody id="cond"></tbody></table></div>
+  <div class="hint">「最悪」は他チームの結果が最も不利に転んだ場合、「最良」は最も有利に転んだ場合の順位です。<b>最悪でも4位以内なら確定</b>です。</div>
+
+  <h2>順位表 <span class="note" id="asof"></span></h2>
+  <div class="wrap"><table><thead>
+    <tr><th>順</th><th>チーム</th><th>試合</th><th>勝</th><th>敗</th><th>分</th><th>勝率</th><th>勝点</th><th>残</th><th>得点</th><th>失点</th></tr>
+  </thead><tbody id="standings"></tbody></table></div>
+  <div class="hint">順位は<b>勝点順</b>（勝3点・分1点・敗0点）。同勝点は同順位です。金色の線が4位と5位の境目。</div>
+
+  <h2>残り試合 <span class="note">結果を入れると順位表と条件が更新されます</span></h2>
+  <div class="bar">
+    <button class="btn" id="reset">入力をリセット</button>
+    <span class="hint" style="margin:0;" id="progress"></span>
+  </div>
+  <div class="hint" style="margin: 0 2px 10px;">パドレスの試合は<b>勝／分／敗</b>、他チーム同士は<b>左</b>＝左のチームの勝ち・<b>右</b>＝右のチームの勝ち。<b>－</b>で未定に戻します。</div>
+  <div class="fixtures" id="fixtures"></div>
+</main>
+
+<footer>SEDAGAYA PADRES — BROWN &amp; GOLD</footer>
+
+<script>
+/* ============================================================
+   さざんかリーグ 2026 — 順位表 & 残り試合シミュレーター
+   基準データ: 2026年8月3日時点の勝敗表
+   順位は勝点順(勝3・分1・敗0)、同勝点は同順位
+   ============================================================ */
+
+const ME = "PADRES";
+const AS_OF = "2026年8月3日時点";
+
+// 8/3時点の成績(消化済みのみ)
+const BASE = {
+  "BULL RANGER": { w: 9, l: 2, d: 1, rf: 40, ra: 21 },
+  "PADRES":      { w: 7, l: 5, d: 1, rf: 29, ra: 23 },
+  "PUNCH":       { w: 7, l: 1, d: 1, rf: 33, ra: 4 },
+  "BROTHERS":    { w: 5, l: 5, d: 3, rf: 45, ra: 35 },
+  "LEISURES":    { w: 5, l: 6, d: 1, rf: 22, ra: 25 },
+  "TOMAHOWKS":   { w: 4, l: 3, d: 4, rf: 30, ra: 38 },
+  "CHUNK":       { w: 5, l: 6, d: 1, rf: 33, ra: 25 },
+  "SOFT PUNKS":  { w: 4, l: 7, d: 2, rf: 33, ra: 29 },
+  "YANKEES":     { w: 1, l: 12, d: 0, rf: 14, ra: 79 }
+};
+
+// 残り18試合
+const GAMES = [
+  { date: "8/5",  a: "PUNCH",       b: "BULL RANGER" },
+  { date: "8/5",  a: "LEISURES",    b: "TOMAHOWKS" },
+  { date: "8/19", a: "PUNCH",       b: "TOMAHOWKS" },
+  { date: "8/19", a: "CHUNK",       b: "SOFT PUNKS" },
+  { date: "8/25", a: "BULL RANGER", b: "YANKEES" },
+  { date: "8/25", a: "BROTHERS",    b: "SOFT PUNKS" },
+  { date: "8/26", a: "PADRES",      b: "CHUNK" },
+  { date: "8/26", a: "PUNCH",       b: "LEISURES" },
+  { date: "9/1",  a: "PUNCH",       b: "BROTHERS" },
+  { date: "9/1",  a: "BULL RANGER", b: "TOMAHOWKS" },
+  { date: "9/2",  a: "LEISURES",    b: "SOFT PUNKS" },
+  { date: "9/2",  a: "CHUNK",       b: "YANKEES" },
+  { date: "9/8",  a: "PUNCH",       b: "YANKEES" },
+  { date: "9/8",  a: "BROTHERS",    b: "CHUNK" },
+  { date: "9/9",  a: "PADRES",      b: "TOMAHOWKS" },
+  { date: "9/9",  a: "PUNCH",       b: "BULL RANGER" },
+  { date: "9/15", a: "PADRES",      b: "PUNCH" },
+  { date: "9/15", a: "LEISURES",    b: "TOMAHOWKS" }
+];
+
+const TEAMS = Object.keys(BASE);
+const STORE_KEY = "sazanka-league-2026";
+
+// results[i] = "A"(左の勝ち) | "D"(引分) | "B"(右の勝ち) | null(未定)
+let results = loadResults();
+
+function loadResults() {
+  try {
+    const r = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    if (Array.isArray(r) && r.length === GAMES.length) return r;
+  } catch (e) { /* ignore */ }
+  return GAMES.map(() => null);
+}
+function saveResults() { localStorage.setItem(STORE_KEY, JSON.stringify(results)); }
+
+/* ---------- 集計 ---------- */
+
+function pointsOf(rec) { return rec.w * 3 + rec.d; }
+
+// 入力済みの結果を反映した現在の成績
+function currentRecords() {
+  const rec = {};
+  TEAMS.forEach(t => rec[t] = { ...BASE[t] });
+  results.forEach((r, i) => {
+    if (!r) return;
+    const { a, b } = GAMES[i];
+    if (r === "D") { rec[a].d++; rec[b].d++; }
+    else if (r === "A") { rec[a].w++; rec[b].l++; }
+    else { rec[b].w++; rec[a].l++; }
+  });
+  return rec;
+}
+
+function undecided() {
+  return GAMES.map((g, i) => ({ ...g, i })).filter(g => !results[g.i]);
+}
+
+/**
+ * パドレスの未定試合の結果を固定したとき、他チームの結果次第で
+ * 起こりうる最悪/最良の順位を求める。
+ * 順位 = 1 + 自分より勝点が多いチーム数。
+ */
+function analyze(padOutcomes) {
+  const rec = currentRecords();
+  const pts = {};
+  TEAMS.forEach(t => pts[t] = pointsOf(rec[t]));
+
+  const myGames = undecided().filter(g => g.a === ME || g.b === ME);
+  myGames.forEach((g, k) => {
+    const opp = g.a === ME ? g.b : g.a;
+    const r = padOutcomes[k];
+    if (r === "W") pts[ME] += 3;
+    else if (r === "D") { pts[ME] += 1; pts[opp] += 1; }
+    else pts[opp] += 3;
+  });
+  const P = pts[ME];
+
+  // パドレス戦以外の未定試合
+  const rest = undecided().filter(g => g.a !== ME && g.b !== ME);
+  const remCount = {};
+  TEAMS.forEach(t => remCount[t] = 0);
+  rest.forEach(g => { remCount[g.a]++; remCount[g.b]++; });
+
+  // 全勝しても自分を超えられないチームは無視してよい
+  const cont = TEAMS.filter(t => t !== ME && pts[t] + 3 * remCount[t] > P);
+  const isC = t => cont.includes(t);
+  const inner = rest.filter(g => isC(g.a) && isC(g.b));
+  const outer = rest.filter(g => !(isC(g.a) && isC(g.b)));
+
+  // 競合 vs 非競合: 最悪=競合が勝つ / 最良=競合が負ける
+  const baseWorst = { ...pts }, baseBest = { ...pts };
+  outer.forEach(g => {
+    if (isC(g.a)) baseWorst[g.a] += 3;
+    if (isC(g.b)) baseWorst[g.b] += 3;
+  });
+
+  // 競合同士は全通り試す(組合せ数が多すぎる場合は総当りを打ち切る)
+  const LIMIT = 14;
+  const n = Math.min(inner.length, LIMIT);
+  const combos = Math.pow(3, n);
+  let worst = 1, best = TEAMS.length;
+  const overflow = inner.slice(n);
+
+  for (let m = 0; m < combos; m++) {
+    const pw = { ...baseWorst }, pb = { ...baseBest };
+    let x = m;
+    for (let k = 0; k < n; k++) {
+      const g = inner[k], r = x % 3; x = (x / 3) | 0;
+      if (r === 0) { pw[g.a] += 3; pb[g.a] += 3; }
+      else if (r === 1) { pw[g.a]++; pw[g.b]++; pb[g.a]++; pb[g.b]++; }
+      else { pw[g.b] += 3; pb[g.b] += 3; }
+    }
+    overflow.forEach(g => { pw[g.a] += 3; pw[g.b] += 3; });  // 打ち切り分は最悪寄りに
+    worst = Math.max(worst, cont.filter(t => pw[t] > P).length + 1);
+    best = Math.min(best, cont.filter(t => pb[t] > P).length + 1);
+  }
+  if (!inner.length) {
+    worst = cont.filter(t => baseWorst[t] > P).length + 1;
+    best = cont.filter(t => baseBest[t] > P).length + 1;
+  }
+  return { P, worst, best };
+}
+
+/* ---------- 描画 ---------- */
+
+function rankMap(rec) {
+  const sorted = TEAMS.slice().sort((a, b) => pointsOf(rec[b]) - pointsOf(rec[a]));
+  const rank = {};
+  sorted.forEach(t => {
+    rank[t] = 1 + TEAMS.filter(o => pointsOf(rec[o]) > pointsOf(rec[t])).length;
+  });
+  return { sorted, rank };
+}
+
+function renderStandings() {
+  const rec = currentRecords();
+  const { sorted, rank } = rankMap(rec);
+  const remCount = {};
+  TEAMS.forEach(t => remCount[t] = 0);
+  undecided().forEach(g => { remCount[g.a]++; remCount[g.b]++; });
+
+  document.getElementById("asof").textContent = AS_OF + "＋入力した結果";
+  document.getElementById("standings").innerHTML = sorted.map((t, idx) => {
+    const r = rec[t], g = r.w + r.l + r.d;
+    const wp = (r.w + r.l) > 0 ? (r.w / (r.w + r.l)) : null;
+    const next = sorted[idx + 1];
+    const cut = next && rank[t] <= 4 && rank[next] > 4;
+    return `<tr class="${t === ME ? "me" : ""} ${cut ? "cut" : ""}">
+      <td class="rank">${rank[t]}</td>
+      <td>${t}</td>
+      <td class="num">${g}</td>
+      <td class="num">${r.w}</td><td class="num">${r.l}</td><td class="num">${r.d}</td>
+      <td class="num">${wp === null ? "-" : wp.toFixed(3).replace(/^0/, "")}</td>
+      <td class="num pts">${pointsOf(r)}</td>
+      <td class="num">${remCount[t]}</td>
+      <td class="num">${r.rf}</td><td class="num">${r.ra}</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderConditions() {
+  const myGames = undecided().filter(g => g.a === ME || g.b === ME);
+  const rec = currentRecords();
+  const { rank } = rankMap(rec);
+  const nowPts = pointsOf(rec[ME]);
+
+  // 残り試合の全パターンを勝敗数ごとにまとめ、最悪は最も悪い並びを採用
+  const agg = new Map();
+  const total = Math.pow(3, myGames.length);
+  for (let m = 0; m < total; m++) {
+    const out = [];
+    let x = m;
+    for (let k = 0; k < myGames.length; k++) { out.push("WDL"[x % 3]); x = (x / 3) | 0; }
+    const key = [out.filter(r => r === "W").length, out.filter(r => r === "L").length, out.filter(r => r === "D").length].join("-");
+    const a = analyze(out);
+    const prev = agg.get(key);
+    if (!prev) agg.set(key, { ...a });
+    else agg.set(key, { P: a.P, worst: Math.max(prev.worst, a.worst), best: Math.min(prev.best, a.best) });
+  }
+
+  const rows = [...agg.entries()]
+    .map(([k, v]) => ({ k: k.split("-").map(Number), ...v }))
+    .sort((a, b) => b.P - a.P);
+
+  let lineDrawn = false;
+  document.getElementById("cond").innerHTML = rows.map(r => {
+    const ok = r.worst <= 4;
+    const line = ok && !lineDrawn && rows.indexOf(r) < rows.length - 1 && rows[rows.indexOf(r) + 1].worst > 4;
+    if (line) lineDrawn = true;
+    return `<tr class="${line ? "line" : ""}">
+      <td>${r.k[0]}勝${r.k[1]}敗${r.k[2]}分</td>
+      <td class="num pts">${r.P}</td>
+      <td class="num">${r.worst}位</td>
+      <td class="num">${r.best}位</td>
+      <td class="${ok ? "ok" : "ng"}">${ok ? "◎ 確定" : "△ 他力"}</td>
+    </tr>`;
+  }).join("");
+
+  // 判定文
+  const safe = rows.filter(r => r.worst <= 4);
+  const need = safe.length ? safe[safe.length - 1] : null;
+  const v = document.getElementById("verdict");
+  if (!myGames.length) {
+    const a = analyze([]);
+    if (!undecided().length) {
+      v.innerHTML = `<div class="lead">全日程終了</div>
+        <div class="answer">最終順位 ${rank[ME]}位</div>
+        <div class="detail">勝点 ${nowPts}。${rank[ME] <= 4 ? "4位以内を達成しました。" : "4位以内には届きませんでした。"}</div>`;
+    } else if (a.worst <= 4) {
+      v.innerHTML = `<div class="lead">パドレスの全日程終了 — 勝点${nowPts}で確定</div>
+        <div class="answer">4位以内が確定</div>
+        <div class="detail">他チームの結果がどうなっても${a.best === a.worst ? `${a.worst}位` : `${a.best}〜${a.worst}位`}に収まります。</div>`;
+    } else {
+      v.innerHTML = `<div class="lead">パドレスの全日程終了 — 勝点${nowPts}で確定</div>
+        <div class="answer">最終 ${a.best === a.worst ? `${a.worst}位` : `${a.best}〜${a.worst}位`}</div>
+        <div class="detail">自力の要素は残っていません。他チームの結果次第で4位以内に入る可能性があります（最良${a.best}位）。</div>`;
+    }
+  } else if (!need) {
+    const bestRow = rows[0];
+    v.innerHTML = `<div class="lead">残り${myGames.length}試合</div>
+      <div class="answer">自力では4位以内に届きません</div>
+      <div class="detail">全勝(勝点${bestRow.P})でも最良${bestRow.best}位・最悪${bestRow.worst}位。他チームの結果次第です。</div>`;
+  } else {
+    const label = `${need.k[0]}勝${need.k[1]}敗${need.k[2]}分`;
+    v.innerHTML = `<div class="lead">残り${myGames.length}試合 — 4位以内を確定させるには</div>
+      <div class="answer">${label}（勝点${need.P}）以上</div>
+      <div class="detail">現在の勝点${nowPts}から<b>あと${need.P - nowPts}ポイント</b>。これを満たせば、他チームの結果がどうなっても4位以内が決まります。</div>`;
+  }
+
+  // タイル
+  const remMine = myGames.map(g => (g.a === ME ? g.b : g.a));
+  document.getElementById("tiles").innerHTML = `
+    <div class="tile"><div class="lbl">現在の順位</div><div class="val gold">${rank[ME]}位</div></div>
+    <div class="tile"><div class="lbl">勝点</div><div class="val">${nowPts}</div></div>
+    <div class="tile"><div class="lbl">残り試合</div><div class="val">${myGames.length}</div></div>
+    <div class="tile"><div class="lbl">最大到達勝点</div><div class="val">${nowPts + myGames.length * 3}</div></div>
+    <div class="tile" style="grid-column: span 2;"><div class="lbl">残りの対戦相手</div>
+      <div style="font-size:13px;padding-top:4px;">${remMine.length ? remMine.join(" ／ ") : "なし"}</div></div>`;
+}
+
+function renderFixtures() {
+  const done = results.filter(Boolean).length;
+  document.getElementById("progress").textContent = `${done} / ${GAMES.length} 試合を入力済み`;
+  document.getElementById("fixtures").innerHTML = GAMES.map((g, i) => {
+    const mine = g.a === ME || g.b === ME;
+    const r = results[i];
+    const btn = (val, label, cls) =>
+      `<button data-i="${i}" data-v="${val}" class="${r === val ? "on " + (cls || "") : ""}">${label}</button>`;
+    // パドレスの試合は「勝/分/敗」、それ以外は「左/分/右」
+    const win = mine ? (g.a === ME ? "A" : "B") : "A";
+    const lose = mine ? (g.a === ME ? "B" : "A") : "B";
+    const seg = mine
+      ? btn(win, "勝", "") + btn("D", "分", "d") + btn(lose, "敗", "l") + btn(null, "－", "d")
+      : btn("A", "左", "") + btn("D", "分", "d") + btn("B", "右", "") + btn(null, "－", "d");
+    return `<div class="fx ${mine ? "pad" : ""}">
+      <span class="date">${g.date}</span>
+      <span class="teams">${g.a === ME ? `<b>${g.a}</b>` : g.a} <span style="color:var(--ink-muted)">vs</span> ${g.b === ME ? `<b>${g.b}</b>` : g.b}</span>
+      <span class="seg">${seg}</span>
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll(".fx .seg button").forEach(b => {
+    b.onclick = () => {
+      const i = +b.dataset.i;
+      const v = b.dataset.v === "null" ? null : b.dataset.v;
+      if (results[i] === v) return;   // 解除は「－」で行う
+      results[i] = v;
+      saveResults();
+      render();
+    };
+  });
+}
+
+function render() {
+  renderStandings();
+  renderConditions();
+  renderFixtures();
+}
+
+document.getElementById("reset").onclick = () => {
+  if (!confirm("入力した試合結果をすべて消して、8月3日時点に戻しますか？")) return;
+  results = GAMES.map(() => null);
+  saveResults();
+  render();
+};
+
+render();
+</script>
+</body>
+</html>
