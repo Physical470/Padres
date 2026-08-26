@@ -191,36 +191,28 @@ footer {
 <script>
 /* ============================================================
    さざんかリーグ 2026 — 順位表 & 残り試合シミュレーター
-   基準データ: 2026年8月3日時点の勝敗表
+   基準データ: 2026年8月26日時点の勝敗表
    順位は勝点順(勝3・分1・敗0)、同勝点は同順位
    ============================================================ */
 
 const ME = "PADRES";
-const AS_OF = "2026年8月3日時点";
+const AS_OF = "2026年8月26日時点";
 
-// 8/3時点の成績(消化済みのみ)
+// 8/26時点の成績(消化済みのみ)
 const BASE = {
-  "BULL RANGER": { w: 9, l: 2, d: 1, rf: 40, ra: 21 },
-  "PADRES":      { w: 7, l: 5, d: 1, rf: 29, ra: 23 },
-  "PUNCH":       { w: 7, l: 1, d: 1, rf: 33, ra: 4 },
-  "BROTHERS":    { w: 5, l: 5, d: 3, rf: 45, ra: 35 },
-  "LEISURES":    { w: 5, l: 6, d: 1, rf: 22, ra: 25 },
-  "TOMAHOWKS":   { w: 4, l: 3, d: 4, rf: 30, ra: 38 },
-  "CHUNK":       { w: 5, l: 6, d: 1, rf: 33, ra: 25 },
-  "SOFT PUNKS":  { w: 4, l: 7, d: 2, rf: 33, ra: 29 },
-  "YANKEES":     { w: 1, l: 12, d: 0, rf: 14, ra: 79 }
+  "BULL RANGER": { w: 10, l: 3, d: 1, rf: 47, ra: 26 },
+  "PADRES":      { w: 8, l: 5, d: 1, rf: 36, ra: 23 },
+  "PUNCH":       { w: 9, l: 1, d: 2, rf: 37, ra: 6 },
+  "BROTHERS":    { w: 5, l: 6, d: 3, rf: 45, ra: 40 },
+  "LEISURES":    { w: 5, l: 6, d: 3, rf: 23, ra: 26 },
+  "TOMAHOWKS":   { w: 4, l: 4, d: 5, rf: 31, ra: 40 },
+  "CHUNK":       { w: 6, l: 7, d: 1, rf: 37, ra: 33 },
+  "SOFT PUNKS":  { w: 5, l: 8, d: 2, rf: 39, ra: 33 },
+  "YANKEES":     { w: 1, l: 13, d: 0, rf: 18, ra: 86 }
 };
 
-// 残り18試合
+// 残り10試合
 const GAMES = [
-  { date: "8/5",  a: "PUNCH",       b: "BULL RANGER" },
-  { date: "8/5",  a: "LEISURES",    b: "TOMAHOWKS" },
-  { date: "8/19", a: "PUNCH",       b: "TOMAHOWKS" },
-  { date: "8/19", a: "CHUNK",       b: "SOFT PUNKS" },
-  { date: "8/25", a: "BULL RANGER", b: "YANKEES" },
-  { date: "8/25", a: "BROTHERS",    b: "SOFT PUNKS" },
-  { date: "8/26", a: "PADRES",      b: "CHUNK" },
-  { date: "8/26", a: "PUNCH",       b: "LEISURES" },
   { date: "9/1",  a: "PUNCH",       b: "BROTHERS" },
   { date: "9/1",  a: "BULL RANGER", b: "TOMAHOWKS" },
   { date: "9/2",  a: "LEISURES",    b: "SOFT PUNKS" },
@@ -234,7 +226,7 @@ const GAMES = [
 ];
 
 const TEAMS = Object.keys(BASE);
-const STORE_KEY = "sazanka-league-2026";
+const STORE_KEY = "sazanka-league-2026-0826";
 
 // results[i] = "A"(左の勝ち) | "D"(引分) | "B"(右の勝ち) | null(未定)
 let results = loadResults();
@@ -430,6 +422,20 @@ function renderConditions() {
         <div class="answer">最終 ${a.best === a.worst ? `${a.worst}位` : `${a.best}〜${a.worst}位`}</div>
         <div class="detail">自力の要素は残っていません。他チームの結果次第で4位以内に入る可能性があります（最良${a.best}位）。</div>`;
     }
+  } else if (safe.length === rows.length) {
+    // 残り全敗でも4位以内 → すでに確定。次の目標(3位以内)を示す
+    const wAll = Math.max(...rows.map(r => r.worst));
+    const bAll = Math.min(...rows.map(r => r.best));
+    const safe3 = rows.filter(r => r.worst <= 3);
+    const need3 = safe3.length ? safe3[safe3.length - 1] : null;
+    const next = need3
+      ? (need3.P <= nowPts
+          ? "<b>3位以内もすでに確定</b>しています。"
+          : `3位以内を確定させるには <b>${need3.k[0]}勝${need3.k[1]}敗${need3.k[2]}分（勝点${need3.P}）以上</b>（あと${need3.P - nowPts}ポイント）。`)
+      : "3位以内は他チームの結果次第です。";
+    v.innerHTML = `<div class="lead">残り${myGames.length}試合 — 勝点${nowPts}</div>
+      <div class="answer">4位以内は確定済み</div>
+      <div class="detail">残り全敗でも最悪${wAll}位。最終順位は${bAll === wAll ? `${wAll}位` : `${bAll}〜${wAll}位`}の見込みです。${next}</div>`;
   } else if (!need) {
     const bestRow = rows[0];
     v.innerHTML = `<div class="lead">残り${myGames.length}試合</div>
@@ -493,7 +499,7 @@ function render() {
 }
 
 document.getElementById("reset").onclick = () => {
-  if (!confirm("入力した試合結果をすべて消して、8月3日時点に戻しますか？")) return;
+  if (!confirm("入力した試合結果をすべて消して、8月26日時点に戻しますか？")) return;
   results = GAMES.map(() => null);
   saveResults();
   render();
