@@ -217,45 +217,41 @@ footer {
 <script>
 /* ============================================================
    さざんかリーグ 2026 — 順位表 & プレーオフ進出シミュレーター
-   基準データ: 2026年8月26日時点の勝敗表
+   基準データ: 2026年9月2日時点の勝敗表
    順位は勝点順(勝3・分1・敗0)。プレーオフは上位4チーム、
    同勝点は「得失点差」で順位を決定する。
    ============================================================ */
 
 const ME = "PADRES";
-const AS_OF = "2026年8月26日時点";
+const AS_OF = "2026年9月2日時点";
 const SPOTS = 4;                     // プレーオフ進出枠
 
-// 8/26時点の成績(消化済みのみ)
+// 9/2時点の成績(消化済みのみ)
 const BASE = {
-  "BULL RANGER": { w: 10, l: 3, d: 1, rf: 47, ra: 26 },
+  "BULL RANGER": { w: 10, l: 3, d: 2, rf: 47, ra: 26 },
+  "PUNCH":       { w: 9, l: 1, d: 3, rf: 39, ra: 8 },
   "PADRES":      { w: 8, l: 5, d: 1, rf: 36, ra: 23 },
-  "PUNCH":       { w: 9, l: 1, d: 2, rf: 37, ra: 6 },
-  "BROTHERS":    { w: 5, l: 6, d: 3, rf: 45, ra: 40 },
-  "LEISURES":    { w: 5, l: 6, d: 3, rf: 23, ra: 26 },
-  "TOMAHOWKS":   { w: 4, l: 4, d: 5, rf: 31, ra: 40 },
-  "CHUNK":       { w: 6, l: 7, d: 1, rf: 37, ra: 33 },
-  "SOFT PUNKS":  { w: 5, l: 8, d: 2, rf: 39, ra: 33 },
-  "YANKEES":     { w: 1, l: 13, d: 0, rf: 18, ra: 86 }
+  "CHUNK":       { w: 7, l: 7, d: 1, rf: 51, ra: 34 },
+  "SOFT PUNKS":  { w: 6, l: 8, d: 2, rf: 52, ra: 34 },
+  "BROTHERS":    { w: 5, l: 6, d: 4, rf: 47, ra: 42 },
+  "LEISURES":    { w: 5, l: 7, d: 3, rf: 24, ra: 39 },
+  "TOMAHOWKS":   { w: 4, l: 4, d: 6, rf: 31, ra: 40 },
+  "YANKEES":     { w: 1, l: 14, d: 0, rf: 19, ra: 100 }
 };
 
-// 残り10試合
+// 残り6試合
 const GAMES = [
-  { date: "9/1",  a: "PUNCH",       b: "BROTHERS" },
-  { date: "9/1",  a: "BULL RANGER", b: "TOMAHOWKS" },
-  { date: "9/2",  a: "LEISURES",    b: "SOFT PUNKS" },
-  { date: "9/2",  a: "CHUNK",       b: "YANKEES" },
-  { date: "9/8",  a: "PUNCH",       b: "YANKEES" },
-  { date: "9/8",  a: "BROTHERS",    b: "CHUNK" },
-  { date: "9/9",  a: "PADRES",      b: "TOMAHOWKS" },
-  { date: "9/9",  a: "PUNCH",       b: "BULL RANGER" },
-  { date: "9/15", a: "PADRES",      b: "PUNCH" },
-  { date: "9/15", a: "LEISURES",    b: "TOMAHOWKS" }
+  { date: "9/8",  a: "PUNCH",    b: "YANKEES" },
+  { date: "9/8",  a: "BROTHERS", b: "CHUNK" },
+  { date: "9/9",  a: "PADRES",   b: "TOMAHOWKS" },
+  { date: "9/9",  a: "PUNCH",    b: "BULL RANGER" },
+  { date: "9/15", a: "PADRES",   b: "PUNCH" },
+  { date: "9/15", a: "LEISURES", b: "TOMAHOWKS" }
 ];
 
 const TEAMS = Object.keys(BASE);
 const IDX = {}; TEAMS.forEach((t, i) => IDX[t] = i);
-const STORE_KEY = "sazanka-league-2026-0826-v2";
+const STORE_KEY = "sazanka-league-2026-0902";
 const FULL_LIMIT = 12;               // 総当り探索を行う未消化試合数の上限
 
 // results[i] = null | { r:"A"|"D"|"B"|null, sa:number|null, sb:number|null }
@@ -342,9 +338,10 @@ function analyseAll() {
 
     const key = w + "-" + l + "-" + d;
     let a = agg.get(key);
-    if (!a) { a = { P, w, l, d, worst: rank, best: rank, rivals: new Set() }; agg.set(key, a); }
+    if (!a) { a = { P, w, l, d, worst: rank, best: rank, rivals: new Set(), seedRivals: new Set() }; agg.set(key, a); }
     else { if (rank > a.worst) a.worst = rank; if (rank < a.best) a.best = rank; }
     if (contested) tied.forEach(t => a.rivals.add(TEAMS[t]));
+    tied.forEach(t => a.seedRivals.add(TEAMS[t]));
   }
   return [...agg.values()].sort((x, y) => y.P - x.P);
 }
@@ -414,7 +411,10 @@ function renderConditions(rows) {
     const line = safe && !lineDrawn && i < rows.length - 1 &&
       !(rows[i + 1].worst <= SPOTS && rows[i + 1].rivals.size === 0);
     if (line) lineDrawn = true;
-    const label = safe ? "◎ 確定"
+    const label = safe
+      ? (r.seedRivals.size
+          ? `◎ 確定<span style="color:var(--ink-muted)">（順位は${[...r.seedRivals].join("・")}と得失点差）</span>`
+          : "◎ 確定")
       : contested ? `△ ${[...r.rivals].join("・")}と得失点差`
       : "× 他力";
     return `<tr class="${line ? "line" : ""}">
@@ -456,9 +456,11 @@ function renderConditions(rows) {
       <div class="answer">自力での確定は不可能</div>
       <div class="detail">全勝(勝点${best.P})でも最悪${best.worst}位。${best.rivals.size ? `${[...best.rivals].join("・")}と並ぶ可能性があり、その場合は得失点差の勝負です。` : "他チームの結果次第です。"}</div>`;
   } else if (need.P <= nowPts) {
+    const wAll = Math.max(...rows.map(r => r.worst));
+    const bAll = Math.min(...rows.map(r => r.best));
     v.innerHTML = `<div class="lead">残り${myGames.length}試合 — 勝点${nowPts}</div>
       <div class="answer">プレーオフ進出は確定済み</div>
-      <div class="detail">残り全敗でも上位4チームに残ります。</div>`;
+      <div class="detail">残り全敗でも上位4チームに残ります。最終順位は${bAll === wAll ? `${wAll}位` : `${bAll}〜${wAll}位`}の見込みで、ここからはシード順の争いです。</div>`;
   } else {
     v.innerHTML = `<div class="lead">残り${myGames.length}試合 — プレーオフ進出を確定させるには</div>
       <div class="answer">${need.w}勝${need.l}敗${need.d}分（勝点${need.P}）以上</div>
@@ -483,15 +485,42 @@ function renderRunDiff(rows) {
   if (!rows) { el.innerHTML = ""; return; }
 
   const rivals = new Set();
-  rows.forEach(r => r.rivals.forEach(t => rivals.add(t)));
-  if (!rivals.size) {
-    el.innerHTML = `<div class="rd ok">同勝点で進出枠を争う相手はいません。<b>得失点差は当落に影響しません。</b></div>`;
-    return;
-  }
+  const seeds = new Set();
+  rows.forEach(r => {
+    r.rivals.forEach(t => rivals.add(t));
+    r.seedRivals.forEach(t => seeds.add(t));
+  });
+  seeds.forEach(t => { if (rivals.has(t)) seeds.delete(t); });
 
   const rec = currentRecords();
   const myDiff = diffOf(rec[ME]);
   const myRem = undecided().filter(g => g.a === ME || g.b === ME).length;
+
+  // 進出枠の争いはないが、同勝点で順位(シード)を分ける相手がいる場合
+  const seedHtml = [...seeds].map(t => {
+    const rd = diffOf(rec[t]);
+    const cushion = myDiff - rd;
+    const pointRows = rows.filter(r => r.seedRivals.has(t)).map(r => `${r.w}勝${r.l}敗${r.d}分`);
+    return `<div class="rd ${cushion > 0 ? "ok" : "ng"}">
+      <h3>${t} と同勝点で並ぶ可能性があります（順位のみ・進出には影響なし）</h3>
+      <div>該当するのはパドレスが <b>${pointRows.join(" / ")}</b> で終わった場合です。並んだ場合の順位は得失点差で決まります。</div>
+      <table>
+        <tr><td>パドレス</td><td class="n">${rec[ME].rf}</td><td>-</td><td class="n">${rec[ME].ra}</td>
+            <td class="n">${myDiff > 0 ? "+" : ""}${myDiff}</td><td>（残${myRem}試合）</td></tr>
+        <tr><td>${t}</td><td class="n">${rec[t].rf}</td><td>-</td><td class="n">${rec[t].ra}</td>
+            <td class="n">${rd > 0 ? "+" : ""}${rd}</td><td>（残${undecided().filter(g => g.a === t || g.b === t).length}試合）</td></tr>
+      </table>
+      <div>得失点差は <span class="cushion ${cushion > 0 ? "ok" : "ng"}">${cushion > 0 ? "+" : ""}${cushion}</span> 点${cushion > 0 ? "のリード" : "のビハインド"}。${
+        cushion > 0
+          ? `並んだ場合は現状パドレスが上位です。`
+          : `並んだ場合は現状${t}が上位になります。順位で上回るには勝点で上回るのが確実です。`}</div>
+    </div>`;
+  }).join("");
+
+  if (!rivals.size) {
+    el.innerHTML = `<div class="rd ok">同勝点で<b>進出枠を争う相手はいません</b>。得失点差が当落を左右することはありません。</div>` + seedHtml;
+    return;
+  }
 
   el.innerHTML = [...rivals].map(t => {
     const rd = diffOf(rec[t]);
@@ -515,7 +544,7 @@ function renderRunDiff(rows) {
       </table>
       <div>現在のリード <span class="cushion ${cushion > 0 ? "ok" : cushion < 0 ? "ng" : ""}">${cushion > 0 ? "+" : ""}${cushion}</span> 点。${cond}</div>
     </div>`;
-  }).join("");
+  }).join("") + seedHtml;
 }
 
 function renderFixtures() {
@@ -581,7 +610,7 @@ function render() {
 }
 
 document.getElementById("reset").onclick = () => {
-  if (!confirm("入力した試合結果をすべて消して、8月26日時点に戻しますか？")) return;
+  if (!confirm("入力した試合結果をすべて消して、9月2日時点に戻しますか？")) return;
   results = GAMES.map(() => null);
   saveResults();
   render();
