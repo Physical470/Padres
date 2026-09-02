@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#2F241D">
+<title>さざんかリーグ 順位表・プレーオフ進出シミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+@font-face {
+  font-family: "Graduate"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("fonts/graduate-latin.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Oswald"; font-style: normal; font-weight: 200 700; font-display: swap;
+  src: url("fonts/oswald-latin.woff2") format("woff2");
+}
+
+:root {
+  --bg: #1C1510; --surface: #2F241D; --surface-2: #3A2D24; --surface-3: #46372C;
+  --line: #4E3E31; --gold: #FFC425; --gold-deep: #D9A410;
+  --ink: #FFF8EC; --ink-2: #D8C9B2; --ink-muted: #A8977E;
+  --win: #7FBF7F; --lose: #E5715F; --warn: #E8A33D;
+  --font-display: "Oswald", "Noto Sans JP", sans-serif;
+  --font-brand: "Graduate", "Oswald", serif;
+  --font-body: "Noto Sans JP", sans-serif;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: 15px; line-height: 1.6;
+}
+
+header {
+  background-image:
+    linear-gradient(180deg, rgba(28,21,16,.4) 0%, rgba(47,36,29,.4) 100%),
+    repeating-linear-gradient(90deg, var(--surface) 0, var(--surface) 10px, #3B2D23 10px, #3B2D23 12px);
+  background-color: var(--surface);
+  border-bottom: 3px solid var(--gold);
+  padding: 16px 18px 14px;
+}
+.header-inner { max-width: 1080px; margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+.mark {
+  position: relative; width: 52px; height: 52px; border-radius: 50%;
+  background: #241B14; border: 2px solid var(--gold);
+  box-shadow: 0 0 0 3px #241B14; flex-shrink: 0;
+}
+.mark span {
+  position: absolute; font-family: var(--font-brand); color: var(--gold); line-height: 1;
+  text-shadow: -2px 0 0 #241B14, 2px 0 0 #241B14, 0 -2px 0 #241B14, 0 2px 0 #241B14;
+}
+.mark .s { font-size: 27px; left: 7px; top: 6px; z-index: 1; }
+.mark .d { font-size: 27px; left: 21px; top: 18px; z-index: 2; }
+h1 {
+  font-family: var(--font-brand); font-weight: 400; font-size: 20px;
+  letter-spacing: 1px; color: var(--gold); margin: 0; line-height: 1.2;
+}
+.sub { font-size: 12px; color: var(--ink-2); }
+
+main { max-width: 1080px; margin: 0 auto; padding: 18px 16px 60px; }
+
+h2 {
+  font-family: var(--font-brand); font-size: 15px; font-weight: 400; letter-spacing: 1.5px;
+  color: var(--gold); text-transform: uppercase; margin: 28px 0 10px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+h2:first-child { margin-top: 4px; }
+h2 .note { font-family: var(--font-body); font-size: 12px; letter-spacing: 0; color: var(--ink-muted); text-transform: none; }
+
+.verdict {
+  background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--gold);
+  border-radius: 10px; padding: 16px 18px; margin-bottom: 12px;
+}
+.verdict .lead { font-size: 13px; color: var(--ink-muted); letter-spacing: 1px; }
+.verdict .answer {
+  font-family: var(--font-display); font-size: clamp(24px, 5vw, 34px); font-weight: 600;
+  color: var(--gold); line-height: 1.25; margin: 2px 0 6px;
+}
+.verdict .detail { font-size: 13px; color: var(--ink-2); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin-bottom: 8px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 13px; }
+.tile .lbl { font-size: 11px; color: var(--ink-muted); letter-spacing: 1px; }
+.tile .val { font-family: var(--font-display); font-size: 26px; font-weight: 600; line-height: 1.2; }
+.tile .val.gold { color: var(--gold); }
+
+/* ---- 得失点差パネル ---- */
+.rd {
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--warn);
+  border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; font-size: 13px;
+}
+.rd.ok { border-left-color: var(--win); }
+.rd.ng { border-left-color: var(--lose); }
+.rd h3 {
+  margin: 0 0 8px; font-size: 14px; color: var(--ink);
+  font-family: var(--font-body); font-weight: 700;
+}
+.rd .cushion { font-family: var(--font-display); font-size: 22px; font-weight: 600; }
+.rd .cushion.ok { color: var(--win); }
+.rd .cushion.ng { color: var(--lose); }
+.rd table { width: auto; margin: 8px 0; font-size: 12px; }
+.rd td { padding: 2px 12px 2px 0; border: none; text-align: left; }
+.rd td.n { font-family: var(--font-display); font-size: 14px; text-align: right; }
+
+/* ---- tables ---- */
+.wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; white-space: nowrap; }
+th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid rgba(78,62,49,.55); }
+th {
+  background: var(--surface-2); color: var(--ink-2); font-family: var(--font-display);
+  font-weight: 600; font-size: 12px; position: sticky; top: 0;
+}
+th:nth-child(-n+3), td:nth-child(-n+3) { text-align: left; }
+td.num { font-family: var(--font-display); font-size: 14px; }
+tbody tr:last-child td { border-bottom: none; }
+tr.me td { background: rgba(255,196,37,.10); }
+tr.me td.tname { color: var(--gold); font-weight: 700; }
+tr.cut td { border-bottom: 2px solid var(--gold-deep); }
+.rank { font-family: var(--font-display); font-size: 15px; color: var(--ink-muted); }
+tr.me .rank { color: var(--gold); }
+.pts { font-family: var(--font-display); font-size: 16px; font-weight: 600; }
+.po { color: var(--win); font-size: 13px; }
+.diff.plus { color: var(--win); }
+.diff.minus { color: var(--lose); }
+
+.cond td.ok { color: var(--win); }
+.cond td.warn { color: var(--warn); }
+.cond td.ng { color: var(--lose); }
+.cond tr.line td { border-bottom: 2px solid var(--gold-deep); }
+
+/* ---- fixtures ---- */
+.fixtures { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+.fx {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 12px 10px;
+}
+.fx.pad { border-color: var(--gold-deep); background: #33271F; }
+.fx .top { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+.fx .date { font-family: var(--font-display); font-size: 12px; color: var(--ink-muted); flex-shrink: 0; }
+.fx .teams { flex: 1; min-width: 0; }
+.fx .teams b { color: var(--gold); font-weight: 700; }
+.fx .bot { display: flex; align-items: center; gap: 8px; margin-top: 7px; flex-wrap: wrap; }
+.fx input {
+  width: 46px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--ink); font-family: var(--font-display); font-size: 15px;
+  padding: 3px 6px; text-align: center;
+}
+.fx input:focus { outline: 2px solid var(--gold); outline-offset: -1px; }
+.fx .dash { color: var(--ink-muted); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; flex-shrink: 0; }
+.seg button {
+  background: var(--surface-2); border: none; color: var(--ink-2);
+  font-family: var(--font-display); font-size: 12px; padding: 4px 9px; cursor: pointer;
+}
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--gold); color: #2F241D; font-weight: 700; }
+.seg button.on.l { background: var(--lose); color: #2A1512; }
+.seg button.on.d { background: var(--surface-3); color: var(--ink); }
+
+.bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+.btn {
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 14px; font-family: var(--font-body); font-size: 13px; cursor: pointer;
+}
+.btn:hover { background: var(--surface-3); }
+.hint { font-size: 12px; color: var(--ink-muted); margin: 8px 2px 0; }
+
+footer {
+  text-align: center; padding: 22px; color: var(--ink-muted);
+  font-family: var(--font-brand); letter-spacing: 3px; font-size: 10px; border-top: 1px solid var(--line);
+}
+@media (max-width: 520px) { h1 { font-size: 16px; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="mark" aria-hidden="true"><span class="s">S</span><span class="d">D</span></div>
+    <div>
+      <h1>SAZANKA LEAGUE 2026</h1>
+      <div class="sub">さざんかリーグ 順位表・プレーオフ進出シミュレーター（世田谷パドレス視点）</div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h2>プレーオフ進出の条件 <span class="note">上位4チームが進出／同勝点は得失点差で決定</span></h2>
+  <div id="verdict"></div>
+  <div class="tiles" id="tiles"></div>
+  <div id="rd"></div>
+
+  <h2>必要な勝敗 <span class="note">パドレスの残り試合の成績ごとの到達順位</span></h2>
+  <div class="wrap"><table class="cond"><thead>
+    <tr><th>成績</th><th>勝点</th><th>最悪</th><th>最良</th><th>進出</th></tr>
+  </thead><tbody id="cond"></tbody></table></div>
+  <div class="hint">「最悪」は他チームの結果が最も不利に転んだ場合、「最良」は最も有利に転んだ場合の順位です。<b>最悪でも4位以内で、かつ同勝点で並ぶ相手がいなければ確定</b>。並ぶ可能性がある場合は得失点差の勝負になります。</div>
+
+  <h2>順位表 <span class="note" id="asof"></span></h2>
+  <div class="wrap"><table><thead>
+    <tr><th>順</th><th>PO</th><th>チーム</th><th>試合</th><th>勝</th><th>敗</th><th>分</th><th>勝率</th><th>勝点</th><th>残</th><th>得点</th><th>失点</th><th>得失点差</th></tr>
+  </thead><tbody id="standings"></tbody></table></div>
+  <div class="hint">順位は<b>勝点順</b>（勝3点・分1点・敗0点）。<b>PO</b>欄の◎は、同勝点を得失点差で分けたときにプレーオフ進出圏（上位4）に入るチームです。金色の線がその境目。</div>
+
+  <h2>残り試合 <span class="note">スコアを入れると得失点差にも反映されます</span></h2>
+  <div class="bar">
+    <button class="btn" id="reset">入力をリセット</button>
+    <span class="hint" style="margin:0;" id="progress"></span>
+  </div>
+  <div class="hint" style="margin: 0 2px 10px;">スコアを両方入れると勝敗が自動判定され、<b>得失点差にも反映</b>されます。スコア不明のときは右のボタンだけでも構いません（その場合、得失点差は変わりません）。<b>－</b>で未定に戻します。</div>
+  <div class="fixtures" id="fixtures"></div>
+</main>
+
+<footer>SEDAGAYA PADRES — BROWN &amp; GOLD</footer>
+
+<script>
+/* ============================================================
+   さざんかリーグ 2026 — 順位表 & プレーオフ進出シミュレーター
+   基準データ: 2026年9月2日時点の勝敗表
+   順位は勝点順(勝3・分1・敗0)。プレーオフは上位4チーム、
+   同勝点は「得失点差」で順位を決定する。
+   ============================================================ */
+
+const ME = "PADRES";
+const AS_OF = "2026年9月2日時点";
+const SPOTS = 4;                     // プレーオフ進出枠
+
+// 9/2時点の成績(消化済みのみ)
+const BASE = {
+  "BULL RANGER": { w: 10, l: 3, d: 2, rf: 47, ra: 26 },
+  "PUNCH":       { w: 9, l: 1, d: 3, rf: 39, ra: 8 },
+  "PADRES":      { w: 8, l: 5, d: 1, rf: 36, ra: 23 },
+  "CHUNK":       { w: 7, l: 7, d: 1, rf: 51, ra: 34 },
+  "SOFT PUNKS":  { w: 6, l: 8, d: 2, rf: 52, ra: 34 },
+  "BROTHERS":    { w: 5, l: 6, d: 4, rf: 47, ra: 42 },
+  "LEISURES":    { w: 5, l: 7, d: 3, rf: 24, ra: 39 },
+  "TOMAHOWKS":   { w: 4, l: 4, d: 6, rf: 31, ra: 40 },
+  "YANKEES":     { w: 1, l: 14, d: 0, rf: 19, ra: 100 }
+};
+
+// 残り6試合
+const GAMES = [
+  { date: "9/8",  a: "PUNCH",    b: "YANKEES" },
+  { date: "9/8",  a: "BROTHERS", b: "CHUNK" },
+  { date: "9/9",  a: "PADRES",   b: "TOMAHOWKS" },
+  { date: "9/9",  a: "PUNCH",    b: "BULL RANGER" },
+  { date: "9/15", a: "PADRES",   b: "PUNCH" },
+  { date: "9/15", a: "LEISURES", b: "TOMAHOWKS" }
+];
+
+const TEAMS = Object.keys(BASE);
+const IDX = {}; TEAMS.forEach((t, i) => IDX[t] = i);
+const STORE_KEY = "sazanka-league-2026-0902";
+const FULL_LIMIT = 12;               // 総当り探索を行う未消化試合数の上限
+
+// results[i] = null | { r:"A"|"D"|"B"|null, sa:number|null, sb:number|null }
+let results = loadResults();
+
+function loadResults() {
+  try {
+    const r = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+    if (Array.isArray(r) && r.length === GAMES.length) return r;
+  } catch (e) { /* ignore */ }
+  return GAMES.map(() => null);
+}
+function saveResults() { localStorage.setItem(STORE_KEY, JSON.stringify(results)); }
+
+/* ---------- 集計 ---------- */
+
+function pointsOf(rec) { return rec.w * 3 + rec.d; }
+function diffOf(rec) { return rec.rf - rec.ra; }
+
+function currentRecords() {
+  const rec = {};
+  TEAMS.forEach(t => rec[t] = { ...BASE[t] });
+  results.forEach((res, i) => {
+    if (!res || !res.r) return;
+    const { a, b } = GAMES[i];
+    if (res.r === "D") { rec[a].d++; rec[b].d++; }
+    else if (res.r === "A") { rec[a].w++; rec[b].l++; }
+    else { rec[b].w++; rec[a].l++; }
+    if (res.sa !== null && res.sb !== null) {
+      rec[a].rf += res.sa; rec[a].ra += res.sb;
+      rec[b].rf += res.sb; rec[b].ra += res.sa;
+    }
+  });
+  return rec;
+}
+
+function undecided() {
+  return GAMES.map((g, i) => ({ ...g, i })).filter(g => !(results[g.i] && results[g.i].r));
+}
+
+/**
+ * 未消化試合を全通り展開し、パドレスの残り成績ごとに
+ * 最悪/最良順位と「同勝点で進出枠を争う相手」を求める。
+ */
+function analyseAll() {
+  const rec = currentRecords();
+  const base = TEAMS.map(t => pointsOf(rec[t]));
+  const un = undecided();
+  const meIdx = IDX[ME];
+
+  if (un.length > FULL_LIMIT) return null;   // 組合せが多すぎる場合は諦める
+
+  const ga = un.map(g => IDX[g.a]);
+  const gb = un.map(g => IDX[g.b]);
+  const meSide = un.map(g => g.a === ME ? 0 : (g.b === ME ? 1 : -1));
+
+  const agg = new Map();
+  const total = Math.pow(3, un.length);
+  const p = new Array(TEAMS.length);
+
+  for (let m = 0; m < total; m++) {
+    for (let t = 0; t < base.length; t++) p[t] = base[t];
+    let x = m, w = 0, l = 0, d = 0;
+    for (let k = 0; k < un.length; k++) {
+      const r = x % 3; x = (x / 3) | 0;
+      if (r === 0) p[ga[k]] += 3;
+      else if (r === 1) { p[ga[k]] += 1; p[gb[k]] += 1; }
+      else p[gb[k]] += 3;
+      const side = meSide[k];
+      if (side === 0) { if (r === 0) w++; else if (r === 1) d++; else l++; }
+      else if (side === 1) { if (r === 2) w++; else if (r === 1) d++; else l++; }
+    }
+    const P = p[meIdx];
+    let above = 0;
+    const tied = [];
+    for (let t = 0; t < p.length; t++) {
+      if (t === meIdx) continue;
+      if (p[t] > P) above++;
+      else if (p[t] === P) tied.push(t);
+    }
+    const rank = above + 1;
+    // 上位陣で枠が埋まっていない かつ 同勝点を含めると枠を超える → 得失点差勝負
+    const contested = above < SPOTS && (above + 1 + tied.length) > SPOTS;
+
+    const key = w + "-" + l + "-" + d;
+    let a = agg.get(key);
+    if (!a) { a = { P, w, l, d, worst: rank, best: rank, rivals: new Set(), seedRivals: new Set() }; agg.set(key, a); }
+    else { if (rank > a.worst) a.worst = rank; if (rank < a.best) a.best = rank; }
+    if (contested) tied.forEach(t => a.rivals.add(TEAMS[t]));
+    tied.forEach(t => a.seedRivals.add(TEAMS[t]));
+  }
+  return [...agg.values()].sort((x, y) => y.P - x.P);
+}
+
+/* ---------- 描画 ---------- */
+
+// 表示順位は勝点のみ(公式表と同じ・同勝点は同順位)。
+// プレーオフ圏は同勝点を得失点差で分けた並びで判定する。
+function standingsOrder(rec) {
+  const sorted = TEAMS.slice().sort((a, b) =>
+    pointsOf(rec[b]) - pointsOf(rec[a]) || diffOf(rec[b]) - diffOf(rec[a]));
+  const rank = {};
+  TEAMS.forEach(t => {
+    rank[t] = 1 + TEAMS.filter(o => pointsOf(rec[o]) > pointsOf(rec[t])).length;
+  });
+  const po = new Set(sorted.slice(0, SPOTS));
+  return { sorted, rank, po };
+}
+
+function renderStandings() {
+  const rec = currentRecords();
+  const { sorted, rank, po } = standingsOrder(rec);
+  const remCount = {};
+  TEAMS.forEach(t => remCount[t] = 0);
+  undecided().forEach(g => { remCount[g.a]++; remCount[g.b]++; });
+
+  document.getElementById("asof").textContent = AS_OF + "＋入力した結果";
+  document.getElementById("standings").innerHTML = sorted.map((t, idx) => {
+    const r = rec[t], g = r.w + r.l + r.d, dv = diffOf(r);
+    const wp = (r.w + r.l) > 0 ? (r.w / (r.w + r.l)) : null;
+    return `<tr class="${t === ME ? "me" : ""} ${idx === SPOTS - 1 ? "cut" : ""}">
+      <td class="rank">${rank[t]}</td>
+      <td class="po">${po.has(t) ? "◎" : ""}</td>
+      <td class="tname">${t}</td>
+      <td class="num">${g}</td>
+      <td class="num">${r.w}</td><td class="num">${r.l}</td><td class="num">${r.d}</td>
+      <td class="num">${wp === null ? "-" : wp.toFixed(3).replace(/^0/, "")}</td>
+      <td class="num pts">${pointsOf(r)}</td>
+      <td class="num">${remCount[t]}</td>
+      <td class="num">${r.rf}</td><td class="num">${r.ra}</td>
+      <td class="num diff ${dv > 0 ? "plus" : dv < 0 ? "minus" : ""}">${dv > 0 ? "+" : ""}${dv}</td>
+    </tr>`;
+  }).join("");
+}
+
+function renderConditions(rows) {
+  const rec = currentRecords();
+  const { rank, po } = standingsOrder(rec);
+  const inPO = po.has(ME);
+  const nowPts = pointsOf(rec[ME]);
+  const myGames = undecided().filter(g => g.a === ME || g.b === ME);
+  const v = document.getElementById("verdict");
+  const condEl = document.getElementById("cond");
+
+  if (!rows) {
+    condEl.innerHTML = `<tr><td colspan="5" style="color:var(--ink-muted)">未消化試合が多いため計算を省略しています</td></tr>`;
+    v.innerHTML = `<div class="lead">残り${myGames.length}試合</div>
+      <div class="answer">計算対象外</div>
+      <div class="detail">未消化試合が多すぎるため、結果を入力して絞り込んでください。</div>`;
+    return;
+  }
+
+  let lineDrawn = false;
+  condEl.innerHTML = rows.map((r, i) => {
+    const safe = r.worst <= SPOTS && r.rivals.size === 0;
+    const contested = r.worst <= SPOTS && r.rivals.size > 0;
+    const line = safe && !lineDrawn && i < rows.length - 1 &&
+      !(rows[i + 1].worst <= SPOTS && rows[i + 1].rivals.size === 0);
+    if (line) lineDrawn = true;
+    const label = safe
+      ? (r.seedRivals.size
+          ? `◎ 確定<span style="color:var(--ink-muted)">（順位は${[...r.seedRivals].join("・")}と得失点差）</span>`
+          : "◎ 確定")
+      : contested ? `△ ${[...r.rivals].join("・")}と得失点差`
+      : "× 他力";
+    return `<tr class="${line ? "line" : ""}">
+      <td>${r.w}勝${r.l}敗${r.d}分</td>
+      <td class="num pts">${r.P}</td>
+      <td class="num">${r.worst}位</td>
+      <td class="num">${r.best}位</td>
+      <td class="${safe ? "ok" : contested ? "warn" : "ng"}">${label}</td>
+    </tr>`;
+  }).join("");
+
+  const safeRows = rows.filter(r => r.worst <= SPOTS && r.rivals.size === 0);
+  const need = safeRows.length ? safeRows[safeRows.length - 1] : null;
+
+  if (!myGames.length) {
+    const r = rows[0];
+    if (!undecided().length) {
+      v.innerHTML = `<div class="lead">全日程終了</div>
+        <div class="answer">${inPO ? "プレーオフ進出" : "プレーオフ進出ならず"}（${rank[ME]}位）</div>
+        <div class="detail">勝点 ${nowPts} / 得失点差 ${diffOf(rec[ME]) > 0 ? "+" : ""}${diffOf(rec[ME])}。</div>`;
+    } else if (r.worst <= SPOTS && r.rivals.size === 0) {
+      v.innerHTML = `<div class="lead">パドレスの全日程終了 — 勝点${nowPts}で確定</div>
+        <div class="answer">プレーオフ進出が確定</div>
+        <div class="detail">他チームの結果がどうなっても${r.best === r.worst ? `${r.worst}位` : `${r.best}〜${r.worst}位`}に収まります。</div>`;
+    } else {
+      const rivalTxt = [...r.rivals].join("・");
+      v.innerHTML = `<div class="lead">パドレスの全日程終了 — 勝点${nowPts}で確定</div>
+        <div class="answer">${inPO ? "現時点では進出圏内" : "現時点では進出圏外"}（最終 ${r.best === r.worst ? `${r.worst}位` : `${r.best}〜${r.worst}位`}）</div>
+        <div class="detail">自力の要素は残っていません。${
+          r.rivals.size
+            ? (inPO
+                ? `${rivalTxt}と同勝点で並んでいますが、得失点差で上回っています。`
+                : `${rivalTxt}に得失点差で下回っており、このままだと進出できません。`)
+            : "他チームの結果次第です。"}</div>`;
+    }
+  } else if (!need) {
+    const best = rows[0];
+    v.innerHTML = `<div class="lead">残り${myGames.length}試合</div>
+      <div class="answer">自力での確定は不可能</div>
+      <div class="detail">全勝(勝点${best.P})でも最悪${best.worst}位。${best.rivals.size ? `${[...best.rivals].join("・")}と並ぶ可能性があり、その場合は得失点差の勝負です。` : "他チームの結果次第です。"}</div>`;
+  } else if (need.P <= nowPts) {
+    const wAll = Math.max(...rows.map(r => r.worst));
+    const bAll = Math.min(...rows.map(r => r.best));
+    v.innerHTML = `<div class="lead">残り${myGames.length}試合 — 勝点${nowPts}</div>
+      <div class="answer">プレーオフ進出は確定済み</div>
+      <div class="detail">残り全敗でも上位4チームに残ります。最終順位は${bAll === wAll ? `${wAll}位` : `${bAll}〜${wAll}位`}の見込みで、ここからはシード順の争いです。</div>`;
+  } else {
+    v.innerHTML = `<div class="lead">残り${myGames.length}試合 — プレーオフ進出を確定させるには</div>
+      <div class="answer">${need.w}勝${need.l}敗${need.d}分（勝点${need.P}）以上</div>
+      <div class="detail">現在の勝点${nowPts}から<b>あと${need.P - nowPts}ポイント</b>。これを満たせば、得失点差を持ち出すまでもなく進出が決まります。</div>`;
+  }
+
+  const remMine = myGames.map(g => (g.a === ME ? g.b : g.a));
+  const dv = diffOf(rec[ME]);
+  document.getElementById("tiles").innerHTML = `
+    <div class="tile"><div class="lbl">現在の順位</div><div class="val gold">${rank[ME]}位</div></div>
+    <div class="tile"><div class="lbl">勝点</div><div class="val">${nowPts}</div></div>
+    <div class="tile"><div class="lbl">得失点差</div><div class="val">${dv > 0 ? "+" : ""}${dv}</div></div>
+    <div class="tile"><div class="lbl">残り試合</div><div class="val">${myGames.length}</div></div>
+    <div class="tile"><div class="lbl">最大到達勝点</div><div class="val">${nowPts + myGames.length * 3}</div></div>
+    <div class="tile" style="grid-column: span 2;"><div class="lbl">残りの対戦相手</div>
+      <div style="font-size:13px;padding-top:4px;">${remMine.length ? remMine.join(" ／ ") : "なし"}</div></div>`;
+}
+
+/** 得失点差で進出枠を争う可能性がある相手について、必要な点差を示す */
+function renderRunDiff(rows) {
+  const el = document.getElementById("rd");
+  if (!rows) { el.innerHTML = ""; return; }
+
+  const rivals = new Set();
+  const seeds = new Set();
+  rows.forEach(r => {
+    r.rivals.forEach(t => rivals.add(t));
+    r.seedRivals.forEach(t => seeds.add(t));
+  });
+  seeds.forEach(t => { if (rivals.has(t)) seeds.delete(t); });
+
+  const rec = currentRecords();
+  const myDiff = diffOf(rec[ME]);
+  const myRem = undecided().filter(g => g.a === ME || g.b === ME).length;
+
+  // 進出枠の争いはないが、同勝点で順位(シード)を分ける相手がいる場合
+  const seedHtml = [...seeds].map(t => {
+    const rd = diffOf(rec[t]);
+    const cushion = myDiff - rd;
+    const pointRows = rows.filter(r => r.seedRivals.has(t)).map(r => `${r.w}勝${r.l}敗${r.d}分`);
+    return `<div class="rd ${cushion > 0 ? "ok" : "ng"}">
+      <h3>${t} と同勝点で並ぶ可能性があります（順位のみ・進出には影響なし）</h3>
+      <div>該当するのはパドレスが <b>${pointRows.join(" / ")}</b> で終わった場合です。並んだ場合の順位は得失点差で決まります。</div>
+      <table>
+        <tr><td>パドレス</td><td class="n">${rec[ME].rf}</td><td>-</td><td class="n">${rec[ME].ra}</td>
+            <td class="n">${myDiff > 0 ? "+" : ""}${myDiff}</td><td>（残${myRem}試合）</td></tr>
+        <tr><td>${t}</td><td class="n">${rec[t].rf}</td><td>-</td><td class="n">${rec[t].ra}</td>
+            <td class="n">${rd > 0 ? "+" : ""}${rd}</td><td>（残${undecided().filter(g => g.a === t || g.b === t).length}試合）</td></tr>
+      </table>
+      <div>得失点差は <span class="cushion ${cushion > 0 ? "ok" : "ng"}">${cushion > 0 ? "+" : ""}${cushion}</span> 点${cushion > 0 ? "のリード" : "のビハインド"}。${
+        cushion > 0
+          ? `並んだ場合は現状パドレスが上位です。`
+          : `並んだ場合は現状${t}が上位になります。順位で上回るには勝点で上回るのが確実です。`}</div>
+    </div>`;
+  }).join("");
+
+  if (!rivals.size) {
+    el.innerHTML = `<div class="rd ok">同勝点で<b>進出枠を争う相手はいません</b>。得失点差が当落を左右することはありません。</div>` + seedHtml;
+    return;
+  }
+
+  el.innerHTML = [...rivals].map(t => {
+    const rd = diffOf(rec[t]);
+    const cushion = myDiff - rd;
+    const rivalRem = undecided().filter(g => g.a === t || g.b === t).length;
+    const pointRows = rows.filter(r => r.rivals.has(t)).map(r => `${r.w}勝${r.l}敗${r.d}分(勝点${r.P})`);
+    const cls = cushion > 0 ? "ok" : cushion < 0 ? "ng" : "";
+    const cond = cushion > 0
+      ? `パドレスの負け越し分と${t}の勝ち越し分の<b>合計が ${cushion - 1} 点以内</b>なら、得失点差でパドレスが上に立ちます（合計${cushion}点で並ぶと、さらに次の基準へ）。`
+      : cushion < 0
+        ? `現在<b>${-cushion}点ビハインド</b>。逆転するには、パドレスの上積みと${t}の目減りの合計が${-cushion + 1}点以上必要です。`
+        : `現在<b>まったくの同値</b>。1点の差が当落を分けます。`;
+    return `<div class="rd ${cls}">
+      <h3>⚠ ${t} と得失点差で争う可能性があります</h3>
+      <div>該当するのはパドレスが <b>${pointRows.join(" / ")}</b> で終わり、${t}が同勝点に並んだ場合です。</div>
+      <table>
+        <tr><td>パドレス</td><td class="n">${rec[ME].rf}</td><td>-</td><td class="n">${rec[ME].ra}</td>
+            <td class="n">${myDiff > 0 ? "+" : ""}${myDiff}</td><td>（残${myRem}試合）</td></tr>
+        <tr><td>${t}</td><td class="n">${rec[t].rf}</td><td>-</td><td class="n">${rec[t].ra}</td>
+            <td class="n">${rd > 0 ? "+" : ""}${rd}</td><td>（残${rivalRem}試合）</td></tr>
+      </table>
+      <div>現在のリード <span class="cushion ${cushion > 0 ? "ok" : cushion < 0 ? "ng" : ""}">${cushion > 0 ? "+" : ""}${cushion}</span> 点。${cond}</div>
+    </div>`;
+  }).join("") + seedHtml;
+}
+
+function renderFixtures() {
+  const done = results.filter(r => r && r.r).length;
+  document.getElementById("progress").textContent = `${done} / ${GAMES.length} 試合を入力済み`;
+  document.getElementById("fixtures").innerHTML = GAMES.map((g, i) => {
+    const mine = g.a === ME || g.b === ME;
+    const res = results[i] || { r: null, sa: null, sb: null };
+    const btn = (val, label, cls) =>
+      `<button data-i="${i}" data-v="${val}" class="${res.r === val ? "on " + (cls || "") : ""}">${label}</button>`;
+    const win = mine ? (g.a === ME ? "A" : "B") : "A";
+    const lose = mine ? (g.a === ME ? "B" : "A") : "B";
+    const seg = mine
+      ? btn(win, "勝", "") + btn("D", "分", "d") + btn(lose, "敗", "l") + btn(null, "－", "d")
+      : btn("A", "左", "") + btn("D", "分", "d") + btn("B", "右", "") + btn(null, "－", "d");
+    return `<div class="fx ${mine ? "pad" : ""}">
+      <div class="top">
+        <span class="date">${g.date}</span>
+        <span class="teams">${g.a === ME ? `<b>${g.a}</b>` : g.a} <span style="color:var(--ink-muted)">vs</span> ${g.b === ME ? `<b>${g.b}</b>` : g.b}</span>
+      </div>
+      <div class="bot">
+        <input type="number" min="0" inputmode="numeric" data-i="${i}" data-s="sa"
+               value="${res.sa === null || res.sa === undefined ? "" : res.sa}" aria-label="${g.a}の得点">
+        <span class="dash">-</span>
+        <input type="number" min="0" inputmode="numeric" data-i="${i}" data-s="sb"
+               value="${res.sb === null || res.sb === undefined ? "" : res.sb}" aria-label="${g.b}の得点">
+        <span class="seg" style="margin-left:auto;">${seg}</span>
+      </div>
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll(".fx .seg button").forEach(b => {
+    b.onclick = () => {
+      const i = +b.dataset.i;
+      const v = b.dataset.v === "null" ? null : b.dataset.v;
+      const cur = results[i];
+      if (cur && cur.r === v) return;             // 解除は「－」で行う
+      results[i] = v === null ? null : { r: v, sa: null, sb: null };
+      saveResults(); render();
+    };
+  });
+
+  document.querySelectorAll(".fx input").forEach(inp => {
+    inp.onchange = () => {
+      const i = +inp.dataset.i, key = inp.dataset.s;
+      const cur = results[i] ? { ...results[i] } : { r: null, sa: null, sb: null };
+      cur[key] = inp.value === "" ? null : Math.max(0, Math.round(+inp.value) || 0);
+      if (cur.sa !== null && cur.sb !== null) {
+        cur.r = cur.sa > cur.sb ? "A" : cur.sa < cur.sb ? "B" : "D";
+      }
+      results[i] = (cur.r === null && cur.sa === null && cur.sb === null) ? null : cur;
+      saveResults(); render();
+    };
+  });
+}
+
+function render() {
+  const rows = analyseAll();
+  renderStandings();
+  renderConditions(rows);
+  renderRunDiff(rows);
+  renderFixtures();
+}
+
+document.getElementById("reset").onclick = () => {
+  if (!confirm("入力した試合結果をすべて消して、9月2日時点に戻しますか？")) return;
+  results = GAMES.map(() => null);
+  saveResults();
+  render();
+};
+
+render();
+</script>
+</body>
+</html>
