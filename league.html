@@ -217,41 +217,39 @@ footer {
 <script>
 /* ============================================================
    さざんかリーグ 2026 — 順位表 & プレーオフ進出シミュレーター
-   基準データ: 2026年9月2日時点の勝敗表
+   基準データ: 2026年9月9日時点の勝敗表
    順位は勝点順(勝3・分1・敗0)。プレーオフは上位4チーム、
    同勝点は「得失点差」で順位を決定する。
    ============================================================ */
 
 const ME = "PADRES";
-const AS_OF = "2026年9月2日時点";
+const AS_OF = "2026年9月9日時点";
 const SPOTS = 4;                     // プレーオフ進出枠
 
-// 9/2時点の成績(消化済みのみ)
+// 9/9時点の成績(消化済みのみ)
 const BASE = {
-  "BULL RANGER": { w: 10, l: 3, d: 2, rf: 47, ra: 26 },
-  "PUNCH":       { w: 9, l: 1, d: 3, rf: 39, ra: 8 },
-  "PADRES":      { w: 8, l: 5, d: 1, rf: 36, ra: 23 },
+  "BULL RANGER": { w: 11, l: 3, d: 2, rf: 48, ra: 26 },
+  "PUNCH":       { w: 9, l: 2, d: 3, rf: 39, ra: 9 },
+  "PADRES":      { w: 9, l: 5, d: 1, rf: 39, ra: 24 },
   "CHUNK":       { w: 7, l: 7, d: 1, rf: 51, ra: 34 },
   "SOFT PUNKS":  { w: 6, l: 8, d: 2, rf: 52, ra: 34 },
   "BROTHERS":    { w: 5, l: 6, d: 4, rf: 47, ra: 42 },
   "LEISURES":    { w: 5, l: 7, d: 3, rf: 24, ra: 39 },
-  "TOMAHOWKS":   { w: 4, l: 4, d: 6, rf: 31, ra: 40 },
+  "TOMAHOWKS":   { w: 4, l: 5, d: 6, rf: 32, ra: 43 },
   "YANKEES":     { w: 1, l: 14, d: 0, rf: 19, ra: 100 }
 };
 
-// 残り6試合
+// 残り4試合
 const GAMES = [
-  { date: "9/8",  a: "PUNCH",    b: "YANKEES" },
-  { date: "9/8",  a: "BROTHERS", b: "CHUNK" },
-  { date: "9/9",  a: "PADRES",   b: "TOMAHOWKS" },
-  { date: "9/9",  a: "PUNCH",    b: "BULL RANGER" },
   { date: "9/15", a: "PADRES",   b: "PUNCH" },
-  { date: "9/15", a: "LEISURES", b: "TOMAHOWKS" }
+  { date: "9/15", a: "LEISURES", b: "TOMAHOWKS" },
+  { date: "9/16", a: "PUNCH",    b: "YANKEES" },
+  { date: "9/16", a: "BROTHERS", b: "CHUNK" }
 ];
 
 const TEAMS = Object.keys(BASE);
 const IDX = {}; TEAMS.forEach((t, i) => IDX[t] = i);
-const STORE_KEY = "sazanka-league-2026-0902";
+const STORE_KEY = "sazanka-league-2026-0909";
 const FULL_LIMIT = 12;               // 総当り探索を行う未消化試合数の上限
 
 // results[i] = null | { r:"A"|"D"|"B"|null, sa:number|null, sb:number|null }
@@ -610,7 +608,7 @@ function render() {
 }
 
 document.getElementById("reset").onclick = () => {
-  if (!confirm("入力した試合結果をすべて消して、9月2日時点に戻しますか？")) return;
+  if (!confirm("入力した試合結果をすべて消して、9月9日時点に戻しますか？")) return;
   results = GAMES.map(() => null);
   saveResults();
   render();
