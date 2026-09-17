@@ -186,7 +186,7 @@ footer {
 </header>
 
 <main>
-  <h2>プレーオフ進出の条件 <span class="note">上位4チームが進出／同勝点は得失点差で決定</span></h2>
+  <h2>プレーオフ進出の条件 <span class="note">上位4チームが進出／同勝点は勝率、勝率同数なら得失点差</span></h2>
   <div id="verdict"></div>
   <div class="tiles" id="tiles"></div>
   <div id="rd"></div>
@@ -195,21 +195,20 @@ footer {
   <div class="wrap"><table class="cond"><thead>
     <tr><th>成績</th><th>勝点</th><th>最悪</th><th>最良</th><th>進出</th></tr>
   </thead><tbody id="cond"></tbody></table></div>
-  <div class="hint">「最悪」は他チームの結果が最も不利に転んだ場合、「最良」は最も有利に転んだ場合の順位です。<b>最悪でも4位以内で、かつ同勝点で並ぶ相手がいなければ確定</b>。並ぶ可能性がある場合は得失点差の勝負になります。</div>
+  <div class="hint">「最悪」は他チームの結果が最も不利に転んだ場合、「最良」は最も有利に転んだ場合の順位です。勝点と勝率まで加味して判定しており、<b>そこまで並ぶ相手がいなければ確定</b>。並ぶ可能性がある場合のみ、最後の基準である得失点差の勝負になります。</div>
 
   <h2>順位表 <span class="note" id="asof"></span></h2>
   <div class="wrap"><table><thead>
     <tr><th>順</th><th>PO</th><th>チーム</th><th>試合</th><th>勝</th><th>敗</th><th>分</th><th>勝率</th><th>勝点</th><th>残</th><th>得点</th><th>失点</th><th>得失点差</th></tr>
   </thead><tbody id="standings"></tbody></table></div>
-  <div class="hint">順位は<b>勝点順</b>（勝3点・分1点・敗0点）。<b>PO</b>欄の◎は、同勝点を得失点差で分けたときにプレーオフ進出圏（上位4）に入るチームです。金色の線がその境目。</div>
-  <div class="hint" style="color:var(--warn);">※9/16時点でBROTHERSとCHUNKが勝点22で並んでいますが、リーグ公式の勝敗表は<b>BROTHERSを4位・CHUNKを5位</b>としています（勝率.500対.467／直接対決もBROTHERSの2勝0敗）。得失点差ではCHUNK（+16）がBROTHERS（+6）を上回るため、この表の◎とは食い違います。4位の確定にはリーグ規定の確認が必要です。</div>
+  <div class="hint">リーグ規約の順位決定に従い、<b>勝点</b>（勝3点・分1点・敗0点）→ <b>勝率</b> → <b>得失点差</b>の順で判定しています。<b>PO</b>欄の◎はプレーオフ進出圏（上位4）で、金色の線がその境目。<br>※リーグ公式の勝敗表は、消化試合が残っているチーム同士の同勝点を暫定的に同順位で表示します（例: 9/16時点のLEISURESとTOMAHOWKSはともに7位）。この表は規約通りに最後まで順位を分けて表示します。</div>
 
   <h2>残り試合 <span class="note">スコアを入れると得失点差にも反映されます</span></h2>
   <div class="bar">
     <button class="btn" id="reset">入力をリセット</button>
     <span class="hint" style="margin:0;" id="progress"></span>
   </div>
-  <div class="hint" style="margin: 0 2px 10px;">スコアを両方入れると勝敗が自動判定され、<b>得失点差にも反映</b>されます。スコア不明のときは右のボタンだけでも構いません（その場合、得失点差は変わりません）。<b>－</b>で未定に戻します。</div>
+  <div class="hint" style="margin: 0 2px 10px;">スコアを両方入れると勝敗が自動判定され、<b>得失点差にも反映</b>されます（勝点・勝率まで並んだ場合の最終判定に使われます）。スコア不明のときは右のボタンだけでも構いません（その場合、得失点差は変わりません）。<b>－</b>で未定に戻します。</div>
   <div class="fixtures" id="fixtures"></div>
 </main>
 
@@ -219,13 +218,13 @@ footer {
 /* ============================================================
    さざんかリーグ 2026 — 順位表 & プレーオフ進出シミュレーター
    基準データ: 2026年9月16日時点の勝敗表
-   順位は勝点順(勝3・分1・敗0)。プレーオフは上位4チーム、
-   同勝点は「得失点差」で順位を決定する。
+   リーグ規約の順位決定: 勝点(勝3・分1・敗0) → 勝率 → 得失点差。
+   プレーオフは上位4チーム。
    ============================================================ */
 
 const ME = "PADRES";
 const AS_OF = "2026年9月16日時点";
-const SPOTS = 4;                     // プレーオフ進出枠
+const SPOTS = 4;                     // プレーオフ進出枠（順位は 勝点→勝率→得失点差 で決定）
 
 // 9/16時点の成績(消化済みのみ)
 const BASE = {
@@ -267,6 +266,17 @@ function saveResults() { localStorage.setItem(STORE_KEY, JSON.stringify(results)
 
 function pointsOf(rec) { return rec.w * 3 + rec.d; }
 function diffOf(rec) { return rec.rf - rec.ra; }
+function wpctOf(rec) { const n = rec.w + rec.l; return n > 0 ? rec.w / n : 0; }
+
+/* リーグ規約の順位決定: 勝点 → 勝率 → 得失点差
+   勝率は浮動小数の誤差を避けるため w1*(w2+l2) と w2*(w1+l1) の大小で比較する */
+function cmpTeams(a, b) {
+  const pd = pointsOf(b) - pointsOf(a);
+  if (pd) return pd;
+  const wd = b.w * (a.w + a.l) - a.w * (b.w + b.l);
+  if (wd) return wd;
+  return diffOf(b) - diffOf(a);
+}
 
 function currentRecords() {
   const rec = {};
@@ -295,7 +305,9 @@ function undecided() {
  */
 function analyseAll() {
   const rec = currentRecords();
-  const base = TEAMS.map(t => pointsOf(rec[t]));
+  const basePts = TEAMS.map(t => pointsOf(rec[t]));
+  const baseW = TEAMS.map(t => rec[t].w);
+  const baseL = TEAMS.map(t => rec[t].l);
   const un = undecided();
   const meIdx = IDX[ME];
 
@@ -308,29 +320,35 @@ function analyseAll() {
   const agg = new Map();
   const total = Math.pow(3, un.length);
   const p = new Array(TEAMS.length);
+  const tw = new Array(TEAMS.length);
+  const tl = new Array(TEAMS.length);
 
   for (let m = 0; m < total; m++) {
-    for (let t = 0; t < base.length; t++) p[t] = base[t];
+    for (let t = 0; t < basePts.length; t++) { p[t] = basePts[t]; tw[t] = baseW[t]; tl[t] = baseL[t]; }
     let x = m, w = 0, l = 0, d = 0;
     for (let k = 0; k < un.length; k++) {
       const r = x % 3; x = (x / 3) | 0;
-      if (r === 0) p[ga[k]] += 3;
+      if (r === 0) { p[ga[k]] += 3; tw[ga[k]]++; tl[gb[k]]++; }
       else if (r === 1) { p[ga[k]] += 1; p[gb[k]] += 1; }
-      else p[gb[k]] += 3;
+      else { p[gb[k]] += 3; tw[gb[k]]++; tl[ga[k]]++; }
       const side = meSide[k];
       if (side === 0) { if (r === 0) w++; else if (r === 1) d++; else l++; }
       else if (side === 1) { if (r === 2) w++; else if (r === 1) d++; else l++; }
     }
-    const P = p[meIdx];
+    const P = p[meIdx], MW = tw[meIdx], ML = tl[meIdx];
     let above = 0;
     const tied = [];
     for (let t = 0; t < p.length; t++) {
       if (t === meIdx) continue;
-      if (p[t] > P) above++;
-      else if (p[t] === P) tied.push(t);
+      if (p[t] > P) { above++; continue; }
+      if (p[t] < P) continue;
+      // 勝点が同じ → 勝率で比較（規約の第2基準）
+      const wd = tw[t] * (MW + ML) - MW * (tw[t] + tl[t]);
+      if (wd > 0) above++;
+      else if (wd === 0) tied.push(t);   // 勝率も同数 → 得失点差で決定
     }
     const rank = above + 1;
-    // 上位陣で枠が埋まっていない かつ 同勝点を含めると枠を超える → 得失点差勝負
+    // 上位陣で枠が埋まっていない かつ 勝点・勝率とも並ぶ相手を含めると枠を超える
     const contested = above < SPOTS && (above + 1 + tied.length) > SPOTS;
 
     const key = w + "-" + l + "-" + d;
@@ -348,11 +366,10 @@ function analyseAll() {
 // 表示順位は勝点のみ(公式表と同じ・同勝点は同順位)。
 // プレーオフ圏は同勝点を得失点差で分けた並びで判定する。
 function standingsOrder(rec) {
-  const sorted = TEAMS.slice().sort((a, b) =>
-    pointsOf(rec[b]) - pointsOf(rec[a]) || diffOf(rec[b]) - diffOf(rec[a]));
+  const sorted = TEAMS.slice().sort((a, b) => cmpTeams(rec[a], rec[b]));
   const rank = {};
   TEAMS.forEach(t => {
-    rank[t] = 1 + TEAMS.filter(o => pointsOf(rec[o]) > pointsOf(rec[t])).length;
+    rank[t] = 1 + TEAMS.filter(o => cmpTeams(rec[o], rec[t]) < 0).length;
   });
   const po = new Set(sorted.slice(0, SPOTS));
   return { sorted, rank, po };
@@ -501,8 +518,8 @@ function renderRunDiff(rows) {
     const cushion = myDiff - rd;
     const pointRows = rows.filter(r => r.seedRivals.has(t)).map(r => `${r.w}勝${r.l}敗${r.d}分`);
     return `<div class="rd ${cushion > 0 ? "ok" : "ng"}">
-      <h3>${t} と同勝点で並ぶ可能性があります（順位のみ・進出には影響なし）</h3>
-      <div>該当するのはパドレスが <b>${pointRows.join(" / ")}</b> で終わった場合です。並んだ場合の順位は得失点差で決まります。</div>
+      <h3>${t} と勝点・勝率まで並ぶ可能性があります（順位のみ・進出には影響なし）</h3>
+      <div>該当するのはパドレスが <b>${pointRows.join(" / ")}</b> で終わった場合です。勝点・勝率とも並ぶと順位は得失点差で決まります。</div>
       <table>
         <tr><td>パドレス</td><td class="n">${rec[ME].rf}</td><td>-</td><td class="n">${rec[ME].ra}</td>
             <td class="n">${myDiff > 0 ? "+" : ""}${myDiff}</td><td>（残${myRem}試合）</td></tr>
@@ -517,7 +534,7 @@ function renderRunDiff(rows) {
   }).join("");
 
   if (!rivals.size) {
-    el.innerHTML = `<div class="rd ok">同勝点で<b>進出枠を争う相手はいません</b>。得失点差が当落を左右することはありません。</div>` + seedHtml;
+    el.innerHTML = `<div class="rd ok">勝点・勝率まで並んで<b>進出枠を争う相手はいません</b>。得失点差が当落を左右することはありません。</div>` + seedHtml;
     return;
   }
 
@@ -533,8 +550,8 @@ function renderRunDiff(rows) {
         ? `現在<b>${-cushion}点ビハインド</b>。逆転するには、パドレスの上積みと${t}の目減りの合計が${-cushion + 1}点以上必要です。`
         : `現在<b>まったくの同値</b>。1点の差が当落を分けます。`;
     return `<div class="rd ${cls}">
-      <h3>⚠ ${t} と得失点差で争う可能性があります</h3>
-      <div>該当するのはパドレスが <b>${pointRows.join(" / ")}</b> で終わり、${t}が同勝点に並んだ場合です。</div>
+      <h3>⚠ ${t} と勝点・勝率まで並び、得失点差で進出枠を争う可能性があります</h3>
+      <div>該当するのはパドレスが <b>${pointRows.join(" / ")}</b> で終わり、${t}が勝点・勝率とも並んだ場合です。</div>
       <table>
         <tr><td>パドレス</td><td class="n">${rec[ME].rf}</td><td>-</td><td class="n">${rec[ME].ra}</td>
             <td class="n">${myDiff > 0 ? "+" : ""}${myDiff}</td><td>（残${myRem}試合）</td></tr>
