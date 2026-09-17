@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#2F241D">
+<title>世田谷パドレス | 個人成績</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=6">
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <div class="team-mark" aria-hidden="true"><span class="tm-s">S</span><span class="tm-d">D</span></div>
+    <div class="team-name">
+      <span class="team-name-en">SEDAGAYA PADRES</span>
+      <span class="team-name-ja">世田谷パドレス 個人成績</span>
+    </div>
+    <button id="sync-chip" class="sync-chip" type="button" title="タップで今すぐ同期" hidden></button>
+    <div class="season-select-wrap">
+      <label for="season-select" class="visually-hidden">シーズン</label>
+      <select id="season-select"></select>
+    </div>
+  </div>
+  <nav class="tab-nav" role="tablist">
+    <button class="tab-btn active" data-tab="dashboard">ダッシュボード</button>
+    <button class="tab-btn" data-tab="players">選手</button>
+    <button class="tab-btn" data-tab="games">試合・入力</button>
+    <button class="tab-btn" data-tab="batting">打撃成績</button>
+    <button class="tab-btn" data-tab="pitching">投手成績</button>
+    <button class="tab-btn" data-tab="data">設定・データ</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-dashboard" class="tab-panel active"></section>
+  <section id="tab-players" class="tab-panel"></section>
+  <section id="tab-games" class="tab-panel"></section>
+  <section id="tab-batting" class="tab-panel"></section>
+  <section id="tab-pitching" class="tab-panel"></section>
+  <section id="tab-data" class="tab-panel"></section>
+</main>
+
+<footer class="app-footer">
+  <span>SEDAGAYA PADRES — BROWN &amp; GOLD</span>
+</footer>
+
+<div id="modal-root"></div>
+
+<script src="js/stats.js?v=6"></script>
+<script src="js/sync.js?v=6"></script>
+<script src="js/app.js?v=6"></script>
+</body>
+</html>
