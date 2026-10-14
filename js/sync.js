@@ -11,7 +11,7 @@ const SYNC_QUEUE_KEY = "padres-sync-queue";
 
 // このアプリが想定する Code.gs の版数。接続先がこれより古い場合は
 // 貼り替え・再デプロイが未反映なので、共有カードで警告する
-const SYNC_EXPECTED_VERSION = "6";
+const SYNC_EXPECTED_VERSION = "7";
 
 let syncConf = null;
 try { syncConf = JSON.parse(localStorage.getItem(SYNC_CONF_KEY) || "null"); } catch (e) { /* ignore */ }
@@ -284,6 +284,7 @@ function normalizeRemote(r) {
     place: String(g.place || ""),
     scoreFor: +g.scoreFor || 0,
     scoreAgainst: +g.scoreAgainst || 0,
+    phase: String(g.phase || "").toLowerCase() === "post" ? "post" : "regular",
     note: String(g.note || "")
   }));
   base.batting = (r.batting || []).map(l => {
