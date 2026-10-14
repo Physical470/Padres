@@ -22,11 +22,11 @@
 const TOKEN = "padres";
 
 // 貼り替え・再デプロイが反映されたか確認するための版数(アプリの共有カードに表示されます)
-const VERSION = "6";
+const VERSION = "7";
 
 const SCHEMAS = {
   players:  ["id","name","number","pos","throws","bats","active"],
-  games:    ["id","date","opponent","place","scoreFor","scoreAgainst","note"],
+  games:    ["id","date","opponent","place","scoreFor","scoreAgainst","phase","note"],
   batting:  ["id","gameId","playerId","AB","R","H","D2","T3","HR","RBI","BB","HBP","SO","SH","SF","GDP","SB","CS"],
   pitching: ["id","gameId","playerId","GS","OUTS","BF","HA","HRA","BBA","HBPA","SOA","RA","ER","W","L","SV","HLD"],
   settings: ["key","value"]
@@ -118,8 +118,24 @@ function sheet(name) {
     sh = ss.insertSheet(name);
     sh.appendRow(SCHEMAS[name]);
     sh.setFrozenRows(1);
+  } else {
+    ensureHeader(sh, name);
   }
   return sh;
+}
+
+/**
+ * 列が増えたときに見出し行だけを補う(1行目以外には一切触れない)。
+ * 既存の行は列が空のまま読まれ、アプリ側で既定値に正規化される。
+ */
+function ensureHeader(sh, name) {
+  try {
+    const want = SCHEMAS[name];
+    if (sh.getLastColumn() >= want.length) return;
+    sh.getRange(1, 1, 1, want.length).setValues([want]);
+  } catch (err) {
+    // 見出しの補正に失敗しても読み書き自体は続行する
+  }
 }
 
 function guardCollection(col) {

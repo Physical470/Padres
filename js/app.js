@@ -19,7 +19,8 @@ const DEFAULT_DB = {
 };
 
 let db = loadDB();
-let currentSeason = "";   // "" = 全期間, その他 "2026" など
+let currentSeason = "";       // "" = 全期間, その他 "2026" など
+let currentPhase = "regular"; // "regular" | "post" | "all"(通年)
 let currentTab = "dashboard";
 let battingMode = "basic";
 let pitchingMode = "basic";
@@ -82,10 +83,27 @@ function seasonOf(game) {
   return m ? m[1] : "";
 }
 
+// 試合の区分。未設定の古いデータはレギュラーシーズン扱い
+function phaseOf(game) { return game.phase === "post" ? "post" : "regular"; }
+
+const PHASE_LABEL = { regular: "レギュラーシーズン", post: "ポストシーズン", all: "通年" };
+
+function periodLabel() {
+  if (!currentSeason) return "全期間";
+  return `${currentSeason}年 ${PHASE_LABEL[currentPhase] || ""}`.trim();
+}
+
 function seasonGames() {
   const gs = db.games.slice().sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-  // 日付が不明な試合はどのシーズンでも表示する(データが画面から消えないように)
-  return currentSeason ? gs.filter(g => { const s = seasonOf(g); return s === currentSeason || s === ""; }) : gs;
+  return gs.filter(g => {
+    if (currentSeason) {
+      const s = seasonOf(g);
+      // 日付が不明な試合はどのシーズンでも表示する(データが画面から消えないように)
+      if (s !== currentSeason && s !== "") return false;
+    }
+    if (currentPhase !== "all" && phaseOf(g) !== currentPhase) return false;
+    return true;
+  });
 }
 
 function seasonGameIds() { return new Set(seasonGames().map(g => g.id)); }
@@ -104,10 +122,18 @@ function refreshSeasonSelect() {
   const years = [...new Set(db.games.map(seasonOf).filter(Boolean))].sort().reverse();
   const thisYear = String(new Date().getFullYear());
   if (!years.includes(thisYear)) years.unshift(thisYear);
-  if (currentSeason === "" && years.length) currentSeason = years[0];
-  sel.innerHTML =
-    years.map(y => `<option value="${y}" ${y === currentSeason ? "selected" : ""}>${y}年</option>`).join("") +
-    `<option value="" ${currentSeason === "" ? "selected" : ""}>全期間</option>`;
+  if (currentSeason === "" && currentPhase !== "all" && years.length) currentSeason = years[0];
+
+  const opt = (y, ph, label) =>
+    `<option value="${y}|${ph}" ${y === currentSeason && ph === currentPhase ? "selected" : ""}>${label}</option>`;
+  const opts = [];
+  years.forEach(y => {
+    opts.push(opt(y, "regular", `${y} レギュラーシーズン`));
+    opts.push(opt(y, "post", `${y} ポストシーズン`));
+    opts.push(opt(y, "all", `${y} 通年`));
+  });
+  opts.push(opt("", "all", "全期間"));
+  sel.innerHTML = opts.join("");
 }
 
 /* ================= 集計 ================= */
@@ -173,7 +199,7 @@ function renderDashboard() {
   const draws = games.length - wins - loses;
   const bat = aggregateBatting();
   const pit = aggregatePitching();
-  const label = currentSeason ? `${currentSeason}年` : "全期間";
+  const label = periodLabel();
 
   const tiles = `
     <div class="tile-row">
@@ -335,7 +361,7 @@ function openPlayerDetail(pid) {
   const lgP = sumPit(seasonPitching());
   const b = batDerived(sumBat(batLines), lgB);
   const pi = pitDerived(sumPit(pitLines), lgP, db.settings.eraBasis);
-  const label = currentSeason ? `${currentSeason}年` : "全期間";
+  const label = periodLabel();
 
   const batSummary = batLines.length ? `
     <div class="section-title" style="font-size:14px;">打撃 (${label})</div>
@@ -430,6 +456,7 @@ function gameCardHTML(g) {
   <div class="game-card">
     <div class="game-head">
       <span class="game-date">${g.date ? esc(g.date) : '<span style="color:var(--danger)">日付未設定</span>'}</span>
+      ${g.phase === "post" ? `<span class="badge ps">PS</span>` : ""}
       <span class="game-vs">vs ${esc(g.opponent)}${g.place ? ` <span style="color:var(--ink-muted);font-weight:400;font-size:12px;">@${esc(g.place)}</span>` : ""}</span>
       <span class="game-score">${g.scoreFor} - ${g.scoreAgainst}</span>
       ${badge}
@@ -463,6 +490,11 @@ function openGameModal(gid) {
       <div class="field half"><label>日付 *</label><input id="f-date" type="date" value="${esc(g.date || "")}"></div>
       <div class="field half"><label>相手チーム *</label><input id="f-opp" value="${esc(g.opponent || "")}" placeholder="例: 目黒ドジャース"></div>
       <div class="field half"><label>球場・場所</label><input id="f-place" value="${esc(g.place || "")}"></div>
+      <div class="field half"><label>区分</label>
+        <select id="f-phase">
+          <option value="regular" ${g.phase !== "post" ? "selected" : ""}>レギュラーシーズン</option>
+          <option value="post" ${g.phase === "post" ? "selected" : ""}>ポストシーズン</option>
+        </select></div>
       <div class="field"><label>得点（自チーム）</label><input id="f-for" type="number" min="0" value="${g.scoreFor ?? 0}"></div>
       <div class="field"><label>失点（相手）</label><input id="f-against" type="number" min="0" value="${g.scoreAgainst ?? 0}"></div>
       <div class="field wide"><label>メモ</label><input id="f-note" value="${esc(g.note || "")}"></div>
@@ -482,6 +514,7 @@ function openGameModal(gid) {
         place: modal.querySelector("#f-place").value.trim(),
         scoreFor: +modal.querySelector("#f-for").value || 0,
         scoreAgainst: +modal.querySelector("#f-against").value || 0,
+        phase: modal.querySelector("#f-phase").value === "post" ? "post" : "regular",
         note: modal.querySelector("#f-note").value.trim()
       };
       let rec;
@@ -489,6 +522,7 @@ function openGameModal(gid) {
       else { rec = { id: uid(), ...data }; db.games.push(rec); }
       pushOps([{ action: "upsert", collection: "games", record: rec }]);
       currentSeason = date.slice(0, 4);
+      currentPhase = data.phase;   // 登録した試合が見える期間に切り替える
       saveDB(); closeModal(); render(); toast("保存しました");
     };
     const del = modal.querySelector("#m-delete");
@@ -817,7 +851,7 @@ function exportTableCSV(cols, rows, name) {
   const blob = new Blob(["﻿" + head + "\n" + body], { type: "text/csv" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `padres-${name}-${currentSeason || "all"}.csv`;
+  a.download = `padres-${name}-${currentSeason || "all"}-${currentPhase}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -998,7 +1032,7 @@ function renderDataTab() {
         if (syncEnabled() && confirm("読み込んだ内容で共有データ(スプレッドシート)も置き換えますか？\n(キャンセルすると次の同期で共有データ側の内容に戻ります)")) {
           pushOps([{ action: "replaceAll", db: exportableDb() }]);
         }
-        saveDB(); currentSeason = ""; refreshSeasonSelect(); render(); toast("読み込みました");
+        saveDB(); currentSeason = ""; currentPhase = "regular"; refreshSeasonSelect(); render(); toast("読み込みました");
       } catch (err) {
         toast("読み込みに失敗しました: " + err.message);
       }
@@ -1011,7 +1045,7 @@ function renderDataTab() {
     if ((db.players.length || db.games.length) &&
         !confirm("現在のデータをサンプルデータで置き換えます。よろしいですか？")) return;
     db = buildSampleData();
-    saveDB(); currentSeason = ""; refreshSeasonSelect(); render(); toast("サンプルデータを読み込みました");
+    saveDB(); currentSeason = ""; currentPhase = "regular"; refreshSeasonSelect(); render(); toast("サンプルデータを読み込みました");
   };
 
   el.querySelector("#btn-reset").onclick = () => {
@@ -1020,7 +1054,7 @@ function renderDataTab() {
     if (!confirm("本当によろしいですか？ この操作は元に戻せません。")) return;
     db = structuredClone(DEFAULT_DB);
     if (syncEnabled()) pushOps([{ action: "replaceAll", db: exportableDb() }]);
-    saveDB(); currentSeason = ""; refreshSeasonSelect(); render(); toast("初期化しました");
+    saveDB(); currentSeason = ""; currentPhase = "regular"; refreshSeasonSelect(); render(); toast("初期化しました");
   };
 }
 
@@ -1040,13 +1074,15 @@ function buildSampleData() {
     P("中村 慎一", 25, "ユーティリティ", "右", "右")
   ];
   const [p1, p2, c, if1, if2, of1, of2, ut] = players.map(p => p.id);
-  const G = (date, opponent, place, sf, sa) => ({ id: uid(), date, opponent, place, scoreFor: sf, scoreAgainst: sa, note: "" });
+  const G = (date, opponent, place, sf, sa, phase) =>
+    ({ id: uid(), date, opponent, place, scoreFor: sf, scoreAgainst: sa, phase: phase || "regular", note: "" });
   const games = [
     G(`${y}-04-06`, "目黒ドジャース", "多摩川緑地", 7, 3),
     G(`${y}-04-20`, "杉並ジャイアンツ", "駒沢公園", 2, 5),
-    G(`${y}-05-11`, "渋谷メッツ", "世田谷公園", 10, 4)
+    G(`${y}-05-11`, "渋谷メッツ", "世田谷公園", 10, 4),
+    G(`${y}-10-05`, "目黒ドジャース", "多摩川緑地", 4, 2, "post")
   ];
-  const [g1, g2, g3] = games.map(g => g.id);
+  const [g1, g2, g3, g4] = games.map(g => g.id);
   const B = (gameId, playerId, o) => ({
     id: uid(), gameId, playerId,
     AB: 0, R: 0, H: 0, D2: 0, T3: 0, HR: 0, RBI: 0, BB: 0, HBP: 0,
@@ -1070,7 +1106,12 @@ function buildSampleData() {
     B(g3, c,   { AB: 4, H: 2, R: 1, RBI: 1 }),
     B(g3, if2, { AB: 4, H: 1, SF: 1, RBI: 1, R: 1 }),
     B(g3, of2, { AB: 5, H: 3, R: 2, SB: 1, RBI: 1 }),
-    B(g3, ut,  { AB: 4, H: 1, HBP: 1, R: 2, SO: 1 })
+    B(g3, ut,  { AB: 4, H: 1, HBP: 1, R: 2, SO: 1 }),
+    // ポストシーズン
+    B(g4, if1, { AB: 4, H: 2, D2: 1, R: 1, RBI: 1 }),
+    B(g4, of1, { AB: 4, H: 1, HR: 1, R: 1, RBI: 2 }),
+    B(g4, c,   { AB: 3, H: 1, BB: 1, R: 1 }),
+    B(g4, of2, { AB: 4, H: 2, SB: 1, RBI: 1 })
   ];
   const Pt = (gameId, playerId, o) => ({
     id: uid(), gameId, playerId,
@@ -1083,7 +1124,8 @@ function buildSampleData() {
     Pt(g2, p2, { GS: 1, OUTS: 12, BF: 21, HA: 6, HRA: 1, BBA: 3, SOA: 4, RA: 4, ER: 3, L: 1 }),
     Pt(g2, ut,  { OUTS: 6, BF: 9, HA: 2, BBA: 1, SOA: 1, RA: 1, ER: 1 }),
     Pt(g3, p1, { GS: 1, OUTS: 18, BF: 26, HA: 5, HRA: 1, BBA: 1, HBPA: 1, SOA: 9, RA: 3, ER: 3, W: 1 }),
-    Pt(g3, p2, { OUTS: 3, BF: 4, HA: 1, SOA: 2, RA: 1, ER: 1 })
+    Pt(g3, p2, { OUTS: 3, BF: 4, HA: 1, SOA: 2, RA: 1, ER: 1 }),
+    Pt(g4, p1, { GS: 1, OUTS: 21, BF: 28, HA: 4, BBA: 2, SOA: 8, RA: 2, ER: 2, W: 1 })
   ];
   return { ...structuredClone(DEFAULT_DB), players, games, batting, pitching };
 }
@@ -1120,7 +1162,9 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 });
 
 document.getElementById("season-select").onchange = e => {
-  currentSeason = e.target.value;
+  const [y, ph] = e.target.value.split("|");
+  currentSeason = y;
+  currentPhase = ph || "regular";
   render();
 };
 

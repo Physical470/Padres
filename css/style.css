@@ -522,6 +522,10 @@ table.stats tr.total-row td:first-child { background: var(--surface-2); }
 .badge.win  { background: var(--gold); color: #2F241D; }
 .badge.lose { background: var(--surface-3); color: var(--ink-2); }
 .badge.draw { background: none; border: 1px solid var(--line); color: var(--ink-2); }
+.badge.ps {
+  background: none; border: 1px solid var(--gold); color: var(--gold);
+  letter-spacing: 1.5px;
+}
 
 .game-lines { margin-top: 8px; font-size: 12px; color: var(--ink-2); }
 .game-lines .line-chip {
@@ -708,6 +712,10 @@ table.stats tr.total-row td:first-child { background: var(--surface-2); }
 @media (max-width: 560px) {
   .team-name-en { font-size: 17px; }
   .tile .tile-value { font-size: 24px; }
-  .header-inner { padding: 10px 14px 8px; }
+  .header-inner { padding: 10px 14px 8px; flex-wrap: wrap; }
   main { padding: 14px 12px 50px; }
+  /* 期間の選択肢が長いので、狭い画面では独立した行に送って全幅で表示する */
+  .season-select-wrap { width: 100%; margin-left: 0; }
+  .season-select-wrap select { width: 100%; font-size: 15px; }
+  .sync-chip { margin-left: auto; }
 }
