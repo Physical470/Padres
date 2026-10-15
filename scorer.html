@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#2F241D">
+<title>世田谷パドレス | 打席入力</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=8">
+<style>
+/* ---- 打席入力アプリ専用 ---- */
+.situation {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 10px 14px; margin-bottom: 10px;
+}
+.inning { font-family: var(--font-display); font-size: 24px; font-weight: 600; color: var(--gold); line-height: 1; }
+.outs { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-muted); }
+.outs i { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--gold); display: inline-block; }
+.outs i.on { background: var(--gold); }
+.situation .spacer { flex: 1; }
+.mini { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mini button {
+  background: var(--surface-2); color: var(--ink-2); border: none; padding: 6px 11px;
+  font-size: 12px; font-family: var(--font-body); cursor: pointer;
+}
+.mini button + button { border-left: 1px solid var(--line); }
+
+.batter {
+  background: var(--surface); border: 1px solid var(--line); border-top: 3px solid var(--gold);
+  border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.batter .lead { font-size: 11px; color: var(--ink-muted); letter-spacing: 1px; }
+.batter .order { font-family: var(--font-display); color: var(--gold); font-size: 15px; margin-right: 6px; }
+.batter .bname { font-size: 22px; font-weight: 700; line-height: 1.3; }
+.batter .who { flex: 1; min-width: 160px; }
+.batter .today { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+
+.rlabel { font-size: 11px; color: var(--ink-muted); letter-spacing: 1px; margin: 12px 2px 6px; }
+.rgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr)); gap: 8px; }
+.rbtn {
+  min-height: 54px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink); cursor: pointer;
+  font-family: var(--font-body); font-size: 15px; font-weight: 700;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.rbtn.hit { border-color: var(--gold-deep); color: var(--gold); background: #3A2D1C; }
+.rbtn.walk { color: var(--ok); }
+.rbtn.out { color: var(--ink-2); }
+.rbtn.run { border-style: dashed; color: var(--ink-2); }
+.rbtn:active { transform: scale(.96); background: var(--surface-3); }
+.rbtn small { display: block; font-size: 10px; font-weight: 400; color: var(--ink-muted); margin-top: 1px; }
+
+.undo-bar { display: flex; gap: 8px; margin: 14px 0 6px; }
+
+.hist { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.hist-item {
+  display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+  border-bottom: 1px solid rgba(78,62,49,.55); font-size: 13px;
+}
+.hist-item:last-child { border-bottom: none; }
+.hist-item.latest { background: rgba(255,196,37,.08); }
+.hist-item .when { font-family: var(--font-display); color: var(--ink-muted); width: 34px; flex-shrink: 0; }
+.hist-item .what { flex: 1; min-width: 0; }
+.hist-item .res { font-weight: 700; }
+.hist-item .res.hit { color: var(--gold); }
+.stepper { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--ink-2); }
+.stepper button {
+  width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--line);
+  background: var(--surface-2); color: var(--ink); font-size: 15px; cursor: pointer; line-height: 1;
+}
+.stepper b { font-family: var(--font-display); font-size: 16px; min-width: 14px; text-align: center; color: var(--ink); }
+.del { background: none; border: none; color: var(--ink-muted); font-size: 16px; cursor: pointer; padding: 2px 4px; }
+
+.slot-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.slot-row .no { width: 38px; flex-shrink: 0; font-family: var(--font-display); color: var(--gold); font-size: 17px; }
+.slot-row select {
+  flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--ink); padding: 9px 10px; font-size: 15px; font-family: var(--font-body);
+}
+.slot-row .btn-sm { flex-shrink: 0; }
+
+.pick-list { display: grid; gap: 6px; max-height: 55vh; overflow-y: auto; }
+.pick {
+  text-align: left; background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--ink); padding: 11px 12px; font-size: 15px; font-family: var(--font-body); cursor: pointer;
+}
+.pick .sub { font-size: 11px; color: var(--ink-muted); margin-left: 6px; }
+.pick-label { font-size: 11px; color: var(--ink-muted); letter-spacing: 1px; margin: 4px 2px 2px; }
+
+.saved-note { font-size: 12px; margin-left: 4px; }
+.saved-note.ok { color: var(--ok); }
+.saved-note.ng { color: var(--warn, #E8A33D); }
+a.btn { text-decoration: none; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="header-inner">
+    <div class="team-mark" aria-hidden="true"><span class="tm-s">S</span><span class="tm-d">D</span></div>
+    <div class="team-name">
+      <span class="team-name-en">SEDAGAYA PADRES</span>
+      <span class="team-name-ja">打席入力</span>
+    </div>
+    <button id="sync-chip" class="sync-chip" type="button" title="タップで選手名簿を再取得" hidden></button>
+  </div>
+  <nav class="tab-nav" role="tablist">
+    <button class="tab-btn active" data-tab="setup">試合設定</button>
+    <button class="tab-btn" data-tab="record">打席記録</button>
+    <button class="tab-btn" data-tab="summary">集計・保存</button>
+  </nav>
+</header>
+
+<main>
+  <section id="tab-setup" class="tab-panel active"></section>
+  <section id="tab-record" class="tab-panel"></section>
+  <section id="tab-summary" class="tab-panel"></section>
+</main>
+
+<footer class="app-footer">
+  <a href="./" style="color:var(--gold);">成績アプリを開く</a>
+</footer>
+
+<div id="modal-root"></div>
+
+<!-- チーム共有の送受信は成績アプリと同じ仕組みを使う -->
+<script src="js/sync.js?v=8"></script>
+<script>
+/* ============================================================
+   打席入力アプリ
+   - 選手名簿は成績アプリ(同じサイトのブラウザ保存領域)から読む
+   - 1打席ごとにボタンを押して記録し、試合後に成績アプリへ保存する
+   - チーム共有に接続していれば、保存した成績はスプレッドシートにも送られる
+   ============================================================ */
+
+const MAIN_KEY = "setagaya-padres-stats-v1";   // 成績アプリのデータ
+const STATE_KEY = "padres-scorer-current";      // 記録中の試合
+// normalizeRemote(sync.js) が参照する。成績アプリと同じ形
+const DEFAULT_DB = {
+  version: 1,
+  settings: { qualPAperG: 2.0, qualIPperG: 1.0, eraBasis: 9 },
+  players: [], games: [], batting: [], pitching: []
+};
+
+/* 打席結果の定義: 成績項目への加算と、そのプレーで増えるアウト数 */
+const RESULTS = {
+  "1B":  { label: "単打",     cls: "hit",  AB: 1, H: 1 },
+  "2B":  { label: "二塁打",   cls: "hit",  AB: 1, H: 1, D2: 1 },
+  "3B":  { label: "三塁打",   cls: "hit",  AB: 1, H: 1, T3: 1 },
+  "HR":  { label: "本塁打",   cls: "hit",  AB: 1, H: 1, HR: 1, R: 1, rbiDefault: 1 },
+  "BB":  { label: "四球",     cls: "walk", BB: 1 },
+  "HBP": { label: "死球",     cls: "walk", HBP: 1 },
+  "E":   { label: "失策",     cls: "walk", AB: 1, note: "エラーで出塁" },
+  "FC":  { label: "野選",     cls: "walk", AB: 1, outs: 1, note: "走者アウト" },
+  "K3":  { label: "振り逃げ", cls: "walk", AB: 1, SO: 1, note: "三振で出塁" },
+  "K":   { label: "三振",     cls: "out",  AB: 1, SO: 1, outs: 1 },
+  "GO":  { label: "ゴロ",     cls: "out",  AB: 1, outs: 1 },
+  "FO":  { label: "フライ",   cls: "out",  AB: 1, outs: 1 },
+  "LO":  { label: "ライナー", cls: "out",  AB: 1, outs: 1 },
+  "DP":  { label: "併殺打",   cls: "out",  AB: 1, GDP: 1, outs: 2 },
+  "SH":  { label: "犠打",     cls: "out",  SH: 1, outs: 1, note: "バント" },
+  "SF":  { label: "犠飛",     cls: "out",  SF: 1, outs: 1, rbiDefault: 1 }
+};
+const GROUPS = [
+  ["ヒット", ["1B", "2B", "3B", "HR"]],
+  ["出塁", ["BB", "HBP", "E", "FC", "K3"]],
+  ["アウト", ["K", "GO", "FO", "LO", "DP", "SH", "SF"]]
+];
+const ON_BASE = new Set(["1B", "2B", "3B", "BB", "HBP", "E", "FC", "K3"]);
+const STAT_KEYS = ["AB", "R", "H", "D2", "T3", "HR", "BB", "HBP", "SO", "SH", "SF", "GDP"];
+const RUNNER = {
+  run: "得点", sb: "盗塁", cs: "盗塁死"
+};
+
+/* ---------- 共通 ---------- */
+
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function todayStr() {
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+function toast(msg) {
+  document.querySelectorAll(".toast").forEach(t => t.remove());
+  const el = document.createElement("div");
+  el.className = "toast"; el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2200);
+}
+
+/* ---------- 成績アプリのデータ ---------- */
+
+function loadMain() {
+  try {
+    const r = JSON.parse(localStorage.getItem(MAIN_KEY) || "null");
+    if (!r) return structuredClone(DEFAULT_DB);
+    return { ...structuredClone(DEFAULT_DB), ...r, settings: { ...DEFAULT_DB.settings, ...(r.settings || {}) } };
+  } catch (e) { return structuredClone(DEFAULT_DB); }
+}
+function saveMain() { localStorage.setItem(MAIN_KEY, JSON.stringify(main)); }
+
+let main = loadMain();
+
+function player(id) { return main.players.find(p => p.id === id); }
+function pname(id) { const p = player(id); return p ? p.name : "(未登録)"; }
+function plabel(id) {
+  const p = player(id);
+  if (!p) return "(未登録)";
+  return `${p.number !== "" && p.number != null ? "#" + p.number + " " : ""}${p.name}`;
+}
+function roster() {
+  return main.players
+    .filter(p => p.active !== false)
+    .sort((a, b) => (+a.number || 999) - (+b.number || 999));
+}
+
+/* ---------- 記録中の試合 ---------- */
+
+function newState(prev) {
+  return {
+    game: { id: uid(), date: todayStr(), opponent: "", place: "", phase: "regular" },
+    lineup: prev ? prev.lineup.slice() : [],   // 打順は次の試合に引き継ぐ
+    events: [],
+    ourScore: null, oppScore: null,
+    savedAt: null
+  };
+}
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(STATE_KEY) || "null");
+    if (s && s.game && Array.isArray(s.lineup) && Array.isArray(s.events)) return s;
+  } catch (e) { /* ignore */ }
+  return newState();
+}
+function saveState() { localStorage.setItem(STATE_KEY, JSON.stringify(st)); }
+function touch() { st.savedAt = null; saveState(); }
+
+let st = loadState();
+let currentTab = st.events.length ? "record" : "setup";
+
+/**
+ * 記録を先頭から再生して、現在のイニング・アウト・次の打者を求める。
+ * 状態を保存せず毎回計算し直すので、取り消しや途中の削除をしても崩れない。
+ */
+function derive() {
+  let inning = 1, outs = 0, cursor = 0;
+  const n = Math.max(1, st.lineup.length);
+  for (const e of st.events) {
+    if (e.kind === "pa") { cursor = (e.slot + 1) % n; outs += RESULTS[e.result].outs || 0; }
+    else if (e.kind === "cs") outs += 1;
+    else if (e.kind === "out") outs = Math.max(0, outs + e.delta);
+    else if (e.kind === "end") { inning++; outs = 0; continue; }
+    else if (e.kind === "cursor") cursor = e.slot % n;
+    if (outs >= 3) { inning++; outs = 0; }
+  }
+  return { inning, outs, cursor: cursor % n };
+}
+
+function lineFor(pid) {
+  const L = { PA: 0, AB: 0, R: 0, H: 0, D2: 0, T3: 0, HR: 0, RBI: 0, BB: 0, HBP: 0,
+              SO: 0, SH: 0, SF: 0, GDP: 0, SB: 0, CS: 0 };
+  for (const e of st.events) {
+    if (e.playerId !== pid) continue;
+    if (e.kind === "pa") {
+      const R = RESULTS[e.result];
+      L.PA++;
+      STAT_KEYS.forEach(k => L[k] += R[k] || 0);
+      L.RBI += e.rbi || 0;
+    } else if (e.kind === "run") L.R++;
+    else if (e.kind === "sb") L.SB++;
+    else if (e.kind === "cs") L.CS++;
+  }
+  return L;
+}
+
+// 記録に登場した選手(打順順。代打などはその打順の位置に並べる)
+function participants() {
+  const order = [];
+  const add = id => { if (id && !order.includes(id)) order.push(id); };
+  st.lineup.forEach((pid, slot) => {
+    st.events.filter(e => e.kind === "pa" && e.slot === slot).forEach(e => add(e.playerId));
+    if (st.events.some(e => e.playerId === pid)) add(pid);
+  });
+  st.events.forEach(e => add(e.playerId));
+  return order;
+}
+
+function teamRuns() { return participants().reduce((s, pid) => s + lineFor(pid).R, 0); }
+
+/* ---------- 画面: 試合設定 ---------- */
+
+function renderSetup() {
+  const el = document.getElementById("tab-setup");
+  const g = st.game;
+  const used = new Set(st.lineup.filter(Boolean));
+  const opts = sel => `<option value="">選手を選択…</option>` + roster().map(p =>
+    `<option value="${p.id}" ${p.id === sel ? "selected" : ""} ${used.has(p.id) && p.id !== sel ? "disabled" : ""}>${esc(plabel(p.id))}</option>`
+  ).join("");
+
+  el.innerHTML = `
+    <div class="section-title">試合情報</div>
+    <div class="form-grid">
+      <div class="field half"><label>日付 *</label><input id="g-date" type="date" value="${esc(g.date)}"></div>
+      <div class="field half"><label>相手チーム *</label><input id="g-opp" value="${esc(g.opponent)}" placeholder="例: PUNCH"></div>
+      <div class="field half"><label>球場・場所</label><input id="g-place" value="${esc(g.place)}"></div>
+      <div class="field half"><label>区分</label>
+        <select id="g-phase">
+          <option value="regular" ${g.phase !== "post" ? "selected" : ""}>レギュラーシーズン</option>
+          <option value="post" ${g.phase === "post" ? "selected" : ""}>ポストシーズン</option>
+        </select></div>
+    </div>
+
+    <div class="section-title">打順 <span class="sub">${st.lineup.length}人</span></div>
+    ${roster().length === 0
+      ? `<div class="empty-note">選手が登録されていません。下の「選手を新規登録」から追加するか、成績アプリで登録してください。</div>`
+      : ""}
+    <div id="slots">
+      ${st.lineup.map((pid, i) => `
+        <div class="slot-row">
+          <span class="no">${i + 1}番</span>
+          <select data-slot="${i}">${opts(pid)}</select>
+          <button class="btn btn-sm" data-up="${i}" ${i === 0 ? "disabled" : ""} aria-label="上へ">↑</button>
+          <button class="btn btn-sm" data-down="${i}" ${i === st.lineup.length - 1 ? "disabled" : ""} aria-label="下へ">↓</button>
+          <button class="btn btn-sm btn-danger" data-remove="${i}" aria-label="削除">×</button>
+        </div>`).join("")}
+    </div>
+    <div class="toolbar" style="margin-top:6px;">
+      <button class="btn" id="add-slot">＋ 打順を追加</button>
+      <button class="btn" id="new-player">＋ 選手を新規登録</button>
+    </div>
+    <div class="table-note">打順は次の試合にも引き継がれます。途中交代や代打は「打席記録」画面で入れ替えられます。</div>
+
+    <div class="section-title">保存先</div>
+    <div class="data-card">
+      ${syncEnabled()
+        ? `<p style="margin:0;">✓ <b>チーム共有に接続中</b>です。保存した成績はスプレッドシートにも送られ、全員の成績アプリに反映されます。</p>`
+        : `<p style="margin:0;">チーム共有には未接続です。保存した成績は<b>この端末の成績アプリ</b>にだけ入ります。チーム全員に反映させたい場合は、成績アプリの「共有用リンク」をこの端末で一度開いてください。</p>`}
+    </div>
+
+    <div class="modal-actions" style="justify-content:flex-start;">
+      <button class="btn btn-gold" id="go-record">打席記録へ進む</button>
+      ${st.events.length ? `<button class="btn btn-danger" id="new-game">新しい試合を始める</button>` : ""}
+    </div>`;
+
+  const bind = (id, key) => {
+    el.querySelector(id).onchange = e => { st.game[key] = e.target.value.trim(); touch(); };
+  };
+  bind("#g-date", "date"); bind("#g-opp", "opponent"); bind("#g-place", "place"); bind("#g-phase", "phase");
+
+  el.querySelectorAll("[data-slot]").forEach(s => s.onchange = () => {
+    st.lineup[+s.dataset.slot] = s.value || null; touch(); renderSetup();
+  });
+  el.querySelectorAll("[data-up]").forEach(b => b.onclick = () => moveSlot(+b.dataset.up, -1));
+  el.querySelectorAll("[data-down]").forEach(b => b.onclick = () => moveSlot(+b.dataset.down, 1));
+  el.querySelectorAll("[data-remove]").forEach(b => b.onclick = () => {
+    const i = +b.dataset.remove;
+    if (st.events.some(e => e.kind === "pa" && e.slot >= i) &&
+        !confirm("この打順より後ろですでに打席を記録しています。外すと打順がずれますが、よろしいですか？")) return;
+    st.lineup.splice(i, 1); touch(); renderSetup();
+  });
+  el.querySelector("#add-slot").onclick = () => { st.lineup.push(null); touch(); renderSetup(); };
+  el.querySelector("#new-player").onclick = () => openNewPlayer(pid => {
+    const empty = st.lineup.indexOf(null);
+    if (empty >= 0) st.lineup[empty] = pid; else st.lineup.push(pid);
+    touch(); renderSetup();
+  });
+  el.querySelector("#go-record").onclick = () => {
+    if (!st.game.date || !st.game.opponent) { toast("日付と相手チームを入力してください"); return; }
+    st.lineup = st.lineup.filter(Boolean);
+    if (!st.lineup.length) { toast("打順に1人以上登録してください"); return; }
+    saveState(); switchTab("record");
+  };
+  const ng = el.querySelector("#new-game");
+  if (ng) ng.onclick = startNewGame;
+}
+
+function moveSlot(i, d) {
+  const j = i + d;
+  if (j < 0 || j >= st.lineup.length) return;
+  [st.lineup[i], st.lineup[j]] = [st.lineup[j], st.lineup[i]];
+  touch(); renderSetup();
+}
+
+/* ---------- 画面: 打席記録 ---------- */
+
+function renderRecord() {
+  const el = document.getElementById("tab-record");
+  const lineup = st.lineup.filter(Boolean);
+  if (!lineup.length || lineup.length !== st.lineup.length) {
+    el.innerHTML = `<div class="empty-note">先に「試合設定」で打順を登録してください。</div>
+      <div class="modal-actions" style="justify-content:flex-start;"><button class="btn btn-gold" id="to-setup">試合設定へ</button></div>`;
+    el.querySelector("#to-setup").onclick = () => switchTab("setup");
+    return;
+  }
+  const d = derive();
+  const pid = st.lineup[d.cursor];
+  const L = lineFor(pid);
+  const todayLine = L.PA
+    ? `この試合 ${L.PA}打席 ${L.AB}打数${L.H}安打${L.RBI ? ` ${L.RBI}打点` : ""}`
+    : "この試合 初打席";
+
+  el.innerHTML = `
+    <div class="situation">
+      <span class="inning">${d.inning}回</span>
+      <span class="outs">${[0, 1, 2].map(i => `<i class="${i < d.outs ? "on" : ""}"></i>`).join("")}<span>${d.outs}アウト</span></span>
+      <span class="spacer"></span>
+      <span class="mini"><button id="out-minus">−</button><button id="out-plus">アウト＋</button></span>
+      <button class="btn btn-sm" id="end-inning">攻撃終了</button>
+    </div>
+
+    <div class="batter">
+      <div class="who">
+        <div class="lead">次の打者</div>
+        <div><span class="order">${d.cursor + 1}番</span><span class="bname">${esc(plabel(pid))}</span></div>
+        <div class="today">${todayLine}</div>
+      </div>
+      <button class="btn btn-sm" id="pinch">代打・交代</button>
+      <button class="btn btn-sm" id="jump">打者を変更</button>
+    </div>
+
+    ${GROUPS.map(([label, keys]) => `
+      <div class="rlabel">${label}</div>
+      <div class="rgrid">
+        ${keys.map(k => `<button class="rbtn ${RESULTS[k].cls}" data-res="${k}">${RESULTS[k].label}${RESULTS[k].note ? `<small>${RESULTS[k].note}</small>` : ""}</button>`).join("")}
+      </div>`).join("")}
+
+    <div class="rlabel">走者（打席とは別に記録）</div>
+    <div class="rgrid">
+      <button class="rbtn run" data-runner="run">得点<small>ホームイン</small></button>
+      <button class="rbtn run" data-runner="sb">盗塁</button>
+      <button class="rbtn run" data-runner="cs">盗塁死<small>アウト＋1</small></button>
+    </div>
+
+    <div class="undo-bar">
+      <button class="btn" id="undo" ${st.events.length ? "" : "disabled"}>↶ 直前の記録を取り消す</button>
+      <button class="btn btn-gold" id="to-summary" style="margin-left:auto;">集計・保存へ</button>
+    </div>
+
+    <div class="section-title">記録 <span class="sub">新しい順・打点は ＋− で調整</span></div>
+    ${st.events.length ? `<div class="hist">${st.events.slice().reverse().map((e, i) => histItem(e, i === 0)).join("")}</div>`
+                       : `<div class="empty-note">まだ記録がありません。上のボタンで打席の結果を押してください。</div>`}`;
+
+  el.querySelectorAll("[data-res]").forEach(b => b.onclick = () => recordPA(b.dataset.res));
+  el.querySelectorAll("[data-runner]").forEach(b => b.onclick = () => pickRunner(b.dataset.runner));
+  el.querySelector("#out-plus").onclick = () => addEvent({ kind: "out", delta: 1 });
+  el.querySelector("#out-minus").onclick = () => addEvent({ kind: "out", delta: -1 });
+  el.querySelector("#end-inning").onclick = () => addEvent({ kind: "end" });
+  el.querySelector("#pinch").onclick = () => pickSubstitute(d.cursor);
+  el.querySelector("#jump").onclick = pickNextBatter;
+  el.querySelector("#undo").onclick = undo;
+  el.querySelector("#to-summary").onclick = () => switchTab("summary");
+  el.querySelectorAll("[data-rbi]").forEach(b => b.onclick = () => {
+    const e = st.events.find(x => x.id === b.dataset.id);
+    if (!e) return;
+    e.rbi = Math.max(0, Math.min(4, (e.rbi || 0) + (+b.dataset.rbi)));
+    touch(); renderRecord();
+  });
+  el.querySelectorAll("[data-del]").forEach(b => b.onclick = () => {
+    if (!confirm("この記録を削除しますか？")) return;
+    st.events = st.events.filter(x => x.id !== b.dataset.del);
+    touch(); renderRecord();
+  });
+}
+
+function histItem(e, latest) {
+  let what;
+  if (e.kind === "pa") {
+    const R = RESULTS[e.result];
+    what = `<span style="color:var(--ink-muted)">${e.slot + 1}番</span> ${esc(pname(e.playerId))}
+      <span class="res ${R.cls === "hit" ? "hit" : ""}">${R.label}</span>`;
+  } else if (RUNNER[e.kind]) {
+    what = `${esc(pname(e.playerId))} <span class="res">${RUNNER[e.kind]}</span>`;
+  } else if (e.kind === "end") what = `<span style="color:var(--ink-muted)">攻撃終了</span>`;
+  else if (e.kind === "out") what = `<span style="color:var(--ink-muted)">アウト ${e.delta > 0 ? "＋1" : "−1"}</span>`;
+  else if (e.kind === "cursor") what = `<span style="color:var(--ink-muted)">次の打者を ${e.slot + 1}番に変更</span>`;
+  return `<div class="hist-item ${latest ? "latest" : ""}">
+    <span class="when">${e.inning}回</span>
+    <span class="what">${what}</span>
+    ${e.kind === "pa" ? `<span class="stepper">打点
+        <button data-rbi="-1" data-id="${e.id}" aria-label="打点を減らす">−</button><b>${e.rbi || 0}</b>
+        <button data-rbi="1" data-id="${e.id}" aria-label="打点を増やす">＋</button></span>` : ""}
+    <button class="del" data-del="${e.id}" aria-label="削除">✕</button>
+  </div>`;
+}
+
+function addEvent(ev) {
+  ev.id = uid();
+  ev.inning = derive().inning;
+  st.events.push(ev);
+  touch(); renderRecord();
+}
+
+function recordPA(result) {
+  const d = derive();
+  const pid = st.lineup[d.cursor];
+  st.events.push({ id: uid(), kind: "pa", slot: d.cursor, playerId: pid, result,
+                   rbi: RESULTS[result].rbiDefault || 0, inning: d.inning });
+  touch(); renderRecord();
+  toast(`${pname(pid)}：${RESULTS[result].label}`);
+}
+
+function undo() {
+  const e = st.events.pop();
+  if (!e) return;
+  touch(); renderRecord();
+  const label = e.kind === "pa" ? `${pname(e.playerId)} ${RESULTS[e.result].label}`
+    : RUNNER[e.kind] ? `${pname(e.playerId)} ${RUNNER[e.kind]}` : "直前の操作";
+  toast(`取り消しました：${label}`);
+}
+
+/* ---------- 選択ダイアログ ---------- */
+
+function openModal(html, setup) {
+  const root = document.getElementById("modal-root");
+  root.innerHTML = `<div class="overlay"><div class="modal">${html}</div></div>`;
+  const ov = root.querySelector(".overlay");
+  ov.addEventListener("mousedown", e => { if (e.target === ov) closeModal(); });
+  const c = root.querySelector("#m-cancel");
+  if (c) c.onclick = closeModal;
+  if (setup) setup(root.querySelector(".modal"));
+}
+function closeModal() { document.getElementById("modal-root").innerHTML = ""; }
+
+function pickRunner(kind) {
+  const d = derive();
+  // 同じイニングで出塁した選手を優先して並べる(走者である可能性が高い)
+  const recent = [];
+  st.events.slice().reverse().forEach(e => {
+    if (e.kind === "pa" && e.inning === d.inning && (ON_BASE.has(e.result)) && !recent.includes(e.playerId)) recent.push(e.playerId);
+  });
+  const others = st.lineup.filter(pid => !recent.includes(pid));
+  const btn = pid => `<button class="pick" data-pid="${pid}">${esc(plabel(pid))}</button>`;
+  openModal(`
+    <h3>${RUNNER[kind]}した選手</h3>
+    <div class="pick-list">
+      ${recent.length ? `<div class="pick-label">このイニングに出塁した選手</div>${recent.map(btn).join("")}` : ""}
+      <div class="pick-label">${recent.length ? "そのほかの選手" : "打順の選手"}</div>
+      ${others.map(btn).join("")}
+    </div>
+    <div class="modal-actions"><button class="btn" id="m-cancel">キャンセル</button></div>`, m => {
+    m.querySelectorAll("[data-pid]").forEach(b => b.onclick = () => {
+      closeModal();
+      addEvent({ kind, playerId: b.dataset.pid });
+      toast(`${pname(b.dataset.pid)}：${RUNNER[kind]}`);
+    });
+  });
+}
+
+function pickSubstitute(slot) {
+  const inLineup = new Set(st.lineup);
+  const bench = roster().filter(p => !inLineup.has(p.id));
+  openModal(`
+    <h3>${slot + 1}番の選手を交代</h3>
+    <div class="table-note" style="margin:-6px 0 10px;">現在: ${esc(plabel(st.lineup[slot]))}。ここまでの打席はそのまま残り、次の打席から新しい選手に付きます。</div>
+    <div class="pick-list">
+      ${bench.length ? bench.map(p => `<button class="pick" data-pid="${p.id}">${esc(plabel(p.id))}</button>`).join("")
+                     : `<div class="empty-note">ベンチの選手がいません。</div>`}
+    </div>
+    <div class="modal-actions">
+      <button class="btn" id="m-new">＋ 選手を新規登録</button>
+      <button class="btn" id="m-cancel">キャンセル</button>
+    </div>`, m => {
+    m.querySelectorAll("[data-pid]").forEach(b => b.onclick = () => {
+      st.lineup[slot] = b.dataset.pid; touch(); closeModal(); renderRecord();
+      toast(`${slot + 1}番：${pname(b.dataset.pid)} に交代`);
+    });
+    m.querySelector("#m-new").onclick = () => openNewPlayer(pid => {
+      st.lineup[slot] = pid; touch(); renderRecord();
+    });
+  });
+}
+
+function pickNextBatter() {
+  openModal(`
+    <h3>次の打者を選ぶ</h3>
+    <div class="table-note" style="margin:-6px 0 10px;">打順どおりに進まなかったときに使います。</div>
+    <div class="pick-list">
+      ${st.lineup.map((pid, i) => `<button class="pick" data-slot="${i}">${i + 1}番 ${esc(plabel(pid))}</button>`).join("")}
+    </div>
+    <div class="modal-actions"><button class="btn" id="m-cancel">キャンセル</button></div>`, m => {
+    m.querySelectorAll("[data-slot]").forEach(b => b.onclick = () => {
+      closeModal(); addEvent({ kind: "cursor", slot: +b.dataset.slot });
+    });
+  });
+}
+
+function openNewPlayer(done) {
+  openModal(`
+    <h3>選手を新規登録</h3>
+    <div class="form-grid">
+      <div class="field half wide"><label>名前 *</label><input id="np-name" placeholder="例: 山田 太郎"></div>
+      <div class="field"><label>背番号</label><input id="np-number" type="number" min="0" inputmode="numeric"></div>
+    </div>
+    <div class="table-note">成績アプリの選手名簿にも追加されます。</div>
+    <div class="modal-actions">
+      <button class="btn" id="m-cancel">キャンセル</button>
+      <button class="btn btn-gold" id="np-save">登録</button>
+    </div>`, m => {
+    m.querySelector("#np-name").focus();
+    m.querySelector("#np-save").onclick = () => {
+      const name = m.querySelector("#np-name").value.trim();
+      if (!name) { toast("名前を入力してください"); return; }
+      const p = { id: uid(), name, number: m.querySelector("#np-number").value, pos: "", throws: "", bats: "", active: true };
+      main = loadMain();
+      main.players.push(p);
+      saveMain();
+      pushOps([{ action: "upsert", collection: "players", record: p }]);
+      closeModal(); toast(`${name} を登録しました`);
+      done(p.id);
+    };
+  });
+}
+
+/* ---------- 画面: 集計・保存 ---------- */
+
+function renderSummary() {
+  const el = document.getElementById("tab-summary");
+  const ps = participants();
+  const runs = teamRuns();
+  const our = st.ourScore ?? runs;
+  const savedNote = st.savedAt
+    ? `<span class="saved-note ok">✓ 保存済み（${new Date(st.savedAt).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}）</span>`
+    : (st.events.length ? `<span class="saved-note ng">未保存の変更があります</span>` : "");
+
+  el.innerHTML = `
+    <div class="section-title">${esc(st.game.date)} vs ${esc(st.game.opponent || "（相手未入力）")}
+      <span class="sub">${st.game.phase === "post" ? "ポストシーズン" : "レギュラーシーズン"}</span></div>
+    ${ps.length ? `
+    <div class="table-wrap"><table class="stats">
+      <thead><tr><th>選手</th><th>打席</th><th>打数</th><th>安打</th><th>二</th><th>三</th><th>本</th><th>打点</th><th>得点</th><th>四死</th><th>三振</th><th>犠</th><th>盗塁</th></tr></thead>
+      <tbody>${ps.map(pid => { const L = lineFor(pid); return `<tr>
+        <td>${esc(plabel(pid))}</td><td class="num">${L.PA}</td><td class="num">${L.AB}</td><td class="num">${L.H}</td>
+        <td class="num">${L.D2}</td><td class="num">${L.T3}</td><td class="num">${L.HR}</td><td class="num">${L.RBI}</td>
+        <td class="num">${L.R}</td><td class="num">${L.BB + L.HBP}</td><td class="num">${L.SO}</td>
+        <td class="num">${L.SH + L.SF}</td><td class="num">${L.SB}</td></tr>`; }).join("")}
+      </tbody></table></div>` : `<div class="empty-note">まだ打席の記録がありません。</div>`}
+
+    <div class="section-title">スコア</div>
+    <div class="form-grid">
+      <div class="field"><label>自チーム得点</label><input id="s-our" type="number" min="0" inputmode="numeric" value="${our}"></div>
+      <div class="field"><label>相手得点</label><input id="s-opp" type="number" min="0" inputmode="numeric" value="${st.oppScore ?? ""}" placeholder="入力"></div>
+    </div>
+    <div class="table-note">自チーム得点は記録した「得点」の合計（${runs}点）を初期値にしています。違っていれば直してください。</div>
+
+    <div class="modal-actions" style="justify-content:flex-start; flex-wrap:wrap;">
+      <button class="btn btn-gold" id="save" ${st.events.length ? "" : "disabled"}>成績アプリに保存</button>
+      ${savedNote}
+    </div>
+    <div class="table-note">保存すると、この試合と各選手の打撃成績が成績アプリに登録されます。保存後に記録を直して、もう一度保存しても重複しません（上書きされます）。投手成績は成績アプリの「試合・入力」から追加してください。</div>
+
+    <div class="modal-actions" style="justify-content:flex-start; margin-top:22px;">
+      <a class="btn" href="./">成績アプリを開く</a>
+      <button class="btn btn-danger" id="new-game">新しい試合を始める</button>
+    </div>`;
+
+  el.querySelector("#s-our").onchange = e => { st.ourScore = e.target.value === "" ? null : Math.max(0, +e.target.value || 0); touch(); renderSummary(); };
+  el.querySelector("#s-opp").onchange = e => { st.oppScore = e.target.value === "" ? null : Math.max(0, +e.target.value || 0); touch(); renderSummary(); };
+  el.querySelector("#save").onclick = saveToMain;
+  el.querySelector("#new-game").onclick = startNewGame;
+}
+
+function saveToMain() {
+  if (!st.game.date || !st.game.opponent) { toast("試合設定で日付と相手チームを入力してください"); switchTab("setup"); return; }
+  if (st.oppScore === null || st.oppScore === undefined) { toast("相手得点を入力してください"); return; }
+
+  main = loadMain();   // 成績アプリ側の最新を読み直してから書き込む
+  const prev = main.games.find(x => x.id === st.game.id);
+  const g = {
+    id: st.game.id, date: st.game.date, opponent: st.game.opponent, place: st.game.place,
+    scoreFor: st.ourScore ?? teamRuns(), scoreAgainst: st.oppScore,
+    phase: st.game.phase === "post" ? "post" : "regular",
+    note: prev && prev.note ? prev.note : "打席入力アプリで記録"
+  };
+  if (prev) Object.assign(prev, g); else main.games.push(g);
+
+  // この試合の打撃成績は丸ごと置き換える(投手成績には触れない)
+  main.batting = main.batting.filter(l => l.gameId !== g.id);
+  const lines = participants().map(pid => {
+    const L = lineFor(pid);
+    return { id: uid(), gameId: g.id, playerId: pid,
+      AB: L.AB, R: L.R, H: L.H, D2: L.D2, T3: L.T3, HR: L.HR, RBI: L.RBI, BB: L.BB, HBP: L.HBP,
+      SO: L.SO, SH: L.SH, SF: L.SF, GDP: L.GDP, SB: L.SB, CS: L.CS };
+  });
+  main.batting.push(...lines);
+  saveMain();
+
+  pushOps([
+    { action: "upsert", collection: "games", record: g },
+    { action: "deleteWhere", collection: "batting", field: "gameId", value: g.id },
+    ...lines.map(l => ({ action: "upsert", collection: "batting", record: l }))
+  ]);
+
+  st.savedAt = new Date().toISOString();
+  saveState(); renderSummary();
+  toast(syncEnabled() ? "保存しました（チーム共有にも送信中）" : "保存しました");
+}
+
+function startNewGame() {
+  if (st.events.length && !st.savedAt &&
+      !confirm("この試合の記録はまだ保存されていません。破棄して新しい試合を始めますか？")) return;
+  if (st.events.length && st.savedAt && !confirm("新しい試合を始めますか？（打順は引き継がれます）")) return;
+  st = newState(st);
+  saveState(); switchTab("setup");
+}
+
+/* ---------- 全体 ---------- */
+
+function switchTab(t) {
+  currentTab = t;
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === t));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === "tab-" + t));
+  render();
+  window.scrollTo(0, 0);
+}
+
+function render() {
+  if (currentTab === "setup") renderSetup();
+  else if (currentTab === "record") renderRecord();
+  else renderSummary();
+}
+
+// チーム共有に接続していれば、最新の選手名簿を取り込む
+async function refreshShared(silent) {
+  if (!syncEnabled()) return;
+  try {
+    await flushQueue();
+    const remote = await apiGet();
+    main = normalizeRemote(remote);
+    saveMain();
+    setSyncStatus("ok");
+    render();
+    if (!silent) toast("最新の選手名簿を取得しました");
+  } catch (e) {
+    setSyncStatus("error", e.message);
+    if (!silent) toast("取得に失敗しました（この端末の名簿で続けられます）");
+  }
+}
+
+document.querySelectorAll(".tab-btn").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+document.getElementById("sync-chip").onclick = () => refreshShared(false);
+
+// 成績アプリを別タブで開いていて名簿が変わったら取り込む
+window.addEventListener("storage", e => {
+  if (e.key === MAIN_KEY) { main = loadMain(); render(); }
+});
+
+// 成績アプリの共有用リンク(#s=...)で開かれた場合も接続できるようにする
+if (location.hash.startsWith("#s=")) {
+  try {
+    const payload = JSON.parse(decodeURIComponent(atob(location.hash.slice(3))));
+    history.replaceState(null, "", location.pathname + location.search);
+    if (payload.u) { saveSyncConf({ url: payload.u, token: payload.t || "" }); toast("チーム共有に接続しました"); }
+  } catch (e) { toast("共有リンクを読み取れませんでした"); }
+}
+
+updateSyncChip();
+switchTab(currentTab);
+refreshShared(true);
+</script>
+</body>
+</html>
