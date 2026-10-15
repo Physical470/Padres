@@ -427,6 +427,7 @@ function renderGames() {
     <div class="toolbar">
       <div class="section-title" style="margin:0;border:none;">試合 <span class="sub">${games.length}試合</span></div>
       <div class="spacer"></div>
+      <a class="btn" href="scorer.html">📱 打席入力アプリ</a>
       <button class="btn btn-gold" id="btn-add-game">＋ 試合を追加</button>
     </div>
     ${games.length === 0
@@ -1173,3 +1174,8 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal()
 refreshSeasonSelect();
 render();
 initSync();
+
+// 打席入力アプリ(scorer.html)を別タブで開いていて保存されたら取り込む
+window.addEventListener("storage", e => {
+  if (e.key === STORAGE_KEY) { db = loadDB(); refreshSeasonSelect(); render(); }
+});
