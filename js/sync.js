@@ -11,7 +11,7 @@ const SYNC_QUEUE_KEY = "padres-sync-queue";
 
 // このアプリが想定する Code.gs の版数。接続先がこれより古い場合は
 // 貼り替え・再デプロイが未反映なので、共有カードで警告する
-const SYNC_EXPECTED_VERSION = "7";
+const SYNC_EXPECTED_VERSION = "8";
 
 let syncConf = null;
 try { syncConf = JSON.parse(localStorage.getItem(SYNC_CONF_KEY) || "null"); } catch (e) { /* ignore */ }
@@ -260,8 +260,22 @@ function normDate(v) {
   return s.length > 10 ? s.slice(0, 10) : s;
 }
 
-function normalizeRemote(r) {
+/**
+ * 共有データを端末の形式に正規化する。
+ * prev(端末側の直前のデータ)を渡すと、旧版Code.gsのように phase 列を返さない
+ * サーバーでも、端末で付けたポストシーズン区分を失わないようにする。
+ */
+function phaseFromRemote(g, localPhase) {
+  const v = String(g.phase === undefined || g.phase === null ? "" : g.phase).trim().toLowerCase();
+  if (v === "post") return "post";
+  if (v === "regular") return "regular";
+  // 区分が届かない(旧版サーバー・空欄)ときは端末側の区分を残す
+  return localPhase === "post" ? "post" : "regular";
+}
+
+function normalizeRemote(r, prev) {
   const base = structuredClone(DEFAULT_DB);
+  const prevPhase = new Map(((prev && prev.games) || []).map(g => [String(g.id), g.phase]));
   const s = r.settings || {};
   ["qualPAperG", "qualIPperG"].forEach(k => {
     if (s[k] !== undefined && s[k] !== "") base.settings[k] = +s[k] || base.settings[k];
@@ -284,7 +298,7 @@ function normalizeRemote(r) {
     place: String(g.place || ""),
     scoreFor: +g.scoreFor || 0,
     scoreAgainst: +g.scoreAgainst || 0,
-    phase: String(g.phase || "").toLowerCase() === "post" ? "post" : "regular",
+    phase: phaseFromRemote(g, prevPhase.get(String(g.id))),
     note: String(g.note || "")
   }));
   base.batting = (r.batting || []).map(l => {
@@ -343,7 +357,7 @@ async function syncPull(silent) {
   try {
     await flushQueue();
     const remote = await apiGet();
-    db = normalizeRemote(remote);
+    db = normalizeRemote(remote, db);
     saveDB();
     repairRemoteDates(remote);
     refreshSeasonSelect();
