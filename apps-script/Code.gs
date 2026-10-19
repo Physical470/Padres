@@ -22,7 +22,7 @@
 const TOKEN = "padres";
 
 // 貼り替え・再デプロイが反映されたか確認するための版数(アプリの共有カードに表示されます)
-const VERSION = "7";
+const VERSION = "8";
 
 const SCHEMAS = {
   players:  ["id","name","number","pos","throws","bats","active"],
@@ -125,27 +125,48 @@ function sheet(name) {
 }
 
 /**
- * 列が増えたときに見出し行だけを補う(1行目以外には一切触れない)。
- * 既存の行は列が空のまま読まれ、アプリ側で既定値に正規化される。
+ * 見出し行を確認し、足りない列があれば右端に追加する(既存の列・行は動かさない)。
+ * 各項目が何列目にあるかを返す。読み書きはすべてこの見出し名で行うので、
+ * 古い版で作ったシートで列の並びが違っていても値がずれない。
  */
-function ensureHeader(sh, name) {
-  try {
-    const want = SCHEMAS[name];
-    if (sh.getLastColumn() >= want.length) return;
+function headerMap(sh, name) {
+  const want = SCHEMAS[name];
+  const lastCol = Math.max(sh.getLastColumn(), 1);
+  const head = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function (v) { return String(v).trim(); });
+  if (head.every(function (v) { return v === ""; })) {
     sh.getRange(1, 1, 1, want.length).setValues([want]);
-  } catch (err) {
-    // 見出しの補正に失敗しても読み書き自体は続行する
+    return mapOf(want);
   }
+  const missing = want.filter(function (f) { return head.indexOf(f) < 0; });
+  if (missing.length) {
+    let end = head.length;
+    while (end > 0 && head[end - 1] === "") end--;
+    sh.getRange(1, end + 1, 1, missing.length).setValues([missing]);
+    head.length = end;
+    missing.forEach(function (f) { head.push(f); });
+  }
+  return mapOf(head);
+}
+
+function mapOf(head) {
+  const m = { _width: head.length };
+  head.forEach(function (f, i) { if (f !== "" && m[f] === undefined) m[f] = i; });
+  return m;
+}
+
+function ensureHeader(sh, name) {
+  try { headerMap(sh, name); }
+  catch (err) { /* 見出しの補正に失敗しても読み書き自体は続行する */ }
 }
 
 function guardCollection(col) {
   if (DATA_COLLECTIONS.indexOf(col) < 0) throw new Error("不明なコレクション: " + col);
 }
 
-function findRow(sh, id) {
+function findRow(sh, id, idCol) {
   const last = sh.getLastRow();
   if (last < 2) return -1;
-  const ids = sh.getRange(2, 1, last - 1, 1).getValues();
+  const ids = sh.getRange(2, (idCol || 0) + 1, last - 1, 1).getValues();
   for (let i = 0; i < ids.length; i++) {
     if (String(ids[i][0]) === String(id)) return i + 2;
   }
@@ -193,17 +214,20 @@ function readAll() {
   const out = {};
   DATA_COLLECTIONS.forEach(function (col) {
     const sh = sheet(col);
+    const m = headerMap(sh, col);
     const data = sh.getDataRange().getValues();
     const recs = [];
     for (let r = 1; r < data.length; r++) {
-      if (String(data[r][0]) === "") continue;
+      if (String(data[r][m.id]) === "") continue;
       const rec = {};
-      SCHEMAS[col].forEach(function (f, i) {
-        let v = data[r][i];
+      SCHEMAS[col].forEach(function (f) {
+        let v = m[f] === undefined ? "" : data[r][m[f]];
+        if (v === undefined) v = "";
         // 日付は "yyyy-MM-dd" 文字列に戻す(タイムゾーンずれ・書式崩れの両方に対応)
         if (f === "date" || v instanceof Date) v = toYmd(v);
         rec[f] = v;
       });
+      if (col === "games") repairPhase(rec);
       recs.push(rec);
     }
     out[col] = recs;
@@ -217,14 +241,28 @@ function readAll() {
   return out;
 }
 
+/**
+ * 版7で古いシートの見出しを付け替えた際、メモが「phase」列に入ってしまった行を直す。
+ */
+function repairPhase(rec) {
+  const ph = String(rec.phase).trim().toLowerCase();
+  if (ph === "" || ph === "post" || ph === "regular") { rec.phase = ph; return; }
+  if (String(rec.note).trim() === "") rec.note = rec.phase;
+  rec.phase = "";
+}
+
 function upsert(col, record) {
   guardCollection(col);
   if (!record || String(record.id || "") === "") throw new Error("idがありません");
   const sh = sheet(col);
-  const values = SCHEMAS[col].map(function (f) {
-    return record[f] === undefined || record[f] === null ? "" : record[f];
+  const m = headerMap(sh, col);
+  const row = findRow(sh, record.id, m.id);
+  const values = row > 0
+    ? sh.getRange(row, 1, 1, m._width).getValues()[0]
+    : new Array(m._width).fill("");
+  SCHEMAS[col].forEach(function (f) {
+    values[m[f]] = record[f] === undefined || record[f] === null ? "" : record[f];
   });
-  const row = findRow(sh, record.id);
   if (row > 0) sh.getRange(row, 1, 1, values.length).setValues([values]);
   else sh.appendRow(values);
 }
@@ -232,15 +270,15 @@ function upsert(col, record) {
 function remove(col, id) {
   guardCollection(col);
   const sh = sheet(col);
-  const row = findRow(sh, id);
+  const row = findRow(sh, id, headerMap(sh, col).id);
   if (row > 0) sh.deleteRow(row);
 }
 
 function deleteWhere(col, field, value) {
   guardCollection(col);
-  const idx = SCHEMAS[col].indexOf(field);
-  if (idx < 0) throw new Error("不明なフィールド: " + field);
+  if (SCHEMAS[col].indexOf(field) < 0) throw new Error("不明なフィールド: " + field);
   const sh = sheet(col);
+  const idx = headerMap(sh, col)[field];
   const data = sh.getDataRange().getValues();
   for (let r = data.length - 1; r >= 1; r--) {
     if (String(data[r][idx]) === String(value)) sh.deleteRow(r + 1);

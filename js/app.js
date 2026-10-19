@@ -21,6 +21,17 @@ const DEFAULT_DB = {
 let db = loadDB();
 let currentSeason = "";       // "" = 全期間, その他 "2026" など
 let currentPhase = "regular"; // "regular" | "post" | "all"(通年)
+const PERIOD_KEY = "padres-period";   // 選んだ期間を再読み込み後も保つ
+try {
+  const saved = JSON.parse(localStorage.getItem(PERIOD_KEY) || "null");
+  if (saved && ["regular", "post", "all"].includes(saved.phase)) {
+    currentSeason = String(saved.season || ""); currentPhase = saved.phase;
+  }
+} catch (e) { /* ignore */ }
+function savePeriod() {
+  try { localStorage.setItem(PERIOD_KEY, JSON.stringify({ season: currentSeason, phase: currentPhase })); }
+  catch (e) { /* ignore */ }
+}
 let currentTab = "dashboard";
 let battingMode = "basic";
 let pitchingMode = "basic";
@@ -123,6 +134,7 @@ function refreshSeasonSelect() {
   const thisYear = String(new Date().getFullYear());
   if (!years.includes(thisYear)) years.unshift(thisYear);
   if (currentSeason === "" && currentPhase !== "all" && years.length) currentSeason = years[0];
+  if (currentSeason !== "" && !years.includes(currentSeason)) currentSeason = years[0];
 
   const opt = (y, ph, label) =>
     `<option value="${y}|${ph}" ${y === currentSeason && ph === currentPhase ? "selected" : ""}>${label}</option>`;
@@ -524,6 +536,7 @@ function openGameModal(gid) {
       pushOps([{ action: "upsert", collection: "games", record: rec }]);
       currentSeason = date.slice(0, 4);
       currentPhase = data.phase;   // 登録した試合が見える期間に切り替える
+      savePeriod();
       saveDB(); closeModal(); render(); toast("保存しました");
     };
     const del = modal.querySelector("#m-delete");
@@ -1033,7 +1046,7 @@ function renderDataTab() {
         if (syncEnabled() && confirm("読み込んだ内容で共有データ(スプレッドシート)も置き換えますか？\n(キャンセルすると次の同期で共有データ側の内容に戻ります)")) {
           pushOps([{ action: "replaceAll", db: exportableDb() }]);
         }
-        saveDB(); currentSeason = ""; currentPhase = "regular"; refreshSeasonSelect(); render(); toast("読み込みました");
+        saveDB(); currentSeason = ""; currentPhase = "regular"; savePeriod(); refreshSeasonSelect(); render(); toast("読み込みました");
       } catch (err) {
         toast("読み込みに失敗しました: " + err.message);
       }
@@ -1046,7 +1059,7 @@ function renderDataTab() {
     if ((db.players.length || db.games.length) &&
         !confirm("現在のデータをサンプルデータで置き換えます。よろしいですか？")) return;
     db = buildSampleData();
-    saveDB(); currentSeason = ""; currentPhase = "regular"; refreshSeasonSelect(); render(); toast("サンプルデータを読み込みました");
+    saveDB(); currentSeason = ""; currentPhase = "regular"; savePeriod(); refreshSeasonSelect(); render(); toast("サンプルデータを読み込みました");
   };
 
   el.querySelector("#btn-reset").onclick = () => {
@@ -1055,7 +1068,7 @@ function renderDataTab() {
     if (!confirm("本当によろしいですか？ この操作は元に戻せません。")) return;
     db = structuredClone(DEFAULT_DB);
     if (syncEnabled()) pushOps([{ action: "replaceAll", db: exportableDb() }]);
-    saveDB(); currentSeason = ""; currentPhase = "regular"; refreshSeasonSelect(); render(); toast("初期化しました");
+    saveDB(); currentSeason = ""; currentPhase = "regular"; savePeriod(); refreshSeasonSelect(); render(); toast("初期化しました");
   };
 }
 
@@ -1166,6 +1179,7 @@ document.getElementById("season-select").onchange = e => {
   const [y, ph] = e.target.value.split("|");
   currentSeason = y;
   currentPhase = ph || "regular";
+  savePeriod();
   render();
 };
 
