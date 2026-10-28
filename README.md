@@ -117,6 +117,9 @@ css/style.css       … パドレスカラーのテーマ
 js/stats.js         … 指標計算エンジン(純関数)
 js/app.js           … 状態管理・描画・入力フォーム・localStorage永続化
 js/sync.js          … チーム共有(スプレッドシート連携)の同期レイヤー
+version.json        … 公開中の版数(古い画面を開いた端末は自動で読み込み直す)
 apps-script/Code.gs … 共有バックエンド(Google Apps Scriptに貼り付けて使用)
 fonts/              … 同梱Webフォント(Graduate / Oswald, latinサブセット)
 ```
+
+※更新を公開するときは `version.json` と各HTMLの `APP_VERSION`・`?v=` を同じ数字に上げてください。
