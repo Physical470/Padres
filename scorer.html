@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=9">
+<link rel="stylesheet" href="css/style.css?v=10">
 <style>
 /* ---- 打席入力アプリ専用 ---- */
 .situation {
@@ -96,6 +96,25 @@
 .saved-note.ng { color: var(--warn, #E8A33D); }
 a.btn { text-decoration: none; }
 </style>
+<meta http-equiv="Cache-Control" content="no-cache">
+<script>
+/* 新しい版が公開されていたら自動で読み込み直す(iPhoneなどが古い画面を保持してしまう対策) */
+window.APP_VERSION = "10";
+(function () {
+  try {
+    fetch("version.json?t=" + Date.now(), { cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (v) {
+        if (!v || !v.version || String(v.version) === window.APP_VERSION) return;
+        var key = "padres-reloaded-" + v.version + location.pathname;
+        if (sessionStorage.getItem(key)) return;   // 読み込み直しは1回だけ
+        sessionStorage.setItem(key, "1");
+        location.replace(location.pathname + "?r=" + encodeURIComponent(v.version) + location.hash);
+      })
+      .catch(function () {});
+  } catch (e) {}
+})();
+</script>
 </head>
 <body>
 
@@ -122,13 +141,13 @@ a.btn { text-decoration: none; }
 </main>
 
 <footer class="app-footer">
-  <a href="./" style="color:var(--gold);">成績アプリを開く</a>
+  <a href="./" style="color:var(--gold);">成績アプリを開く</a> <span>· ver 10</span>
 </footer>
 
 <div id="modal-root"></div>
 
 <!-- チーム共有の送受信は成績アプリと同じ仕組みを使う -->
-<script src="js/sync.js?v=9"></script>
+<script src="js/sync.js?v=10"></script>
 <script>
 /* ============================================================
    打席入力アプリ
